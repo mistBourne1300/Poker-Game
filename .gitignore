@@ -2,3 +2,4 @@
 .idea/
 !*.*
 makefile
+*.exe
