@@ -2,7 +2,7 @@
 #include <string>
 #include <sstream>
 #include <cmath>
-#include <bits/locale_conv.h>
+// #include <bits/locale_conv.h>
 
 using namespace std;
 
@@ -44,7 +44,8 @@ int main(const int argc, const char* argv[]) {
         card = card_to_tuple(strCard);
         curr_hand[i - 1][0] = card[0]; curr_hand[i - 1][1] = card[1];
     }
-    combination(buckets, argc - 1, curr_hand, 0, {});
+    int cardsToExclude[0][2] = {};
+    combination(buckets, argc - 1, curr_hand, 0, cardsToExclude);
     int total_hands = 0;
     for (int i = 0; i < argc; i++) { total_hands += buckets[i]; }
     for (int i = 9; i > -1; i--) {
