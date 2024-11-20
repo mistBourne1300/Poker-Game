@@ -67,4 +67,24 @@ class Card {
     }
 };
 
+class Deck {
+    private:
+    vector<Card*> cards;
+
+    public:
+      Deck() {
+        for (int suit = 0; suit < 4; suit++) {
+          for (int rank = 2; rank < 14; rank++) {
+            cards.push_back(new Card(rank, suit));
+          }
+        }
+      }
+      ~Deck() {
+        for (int i = 0; i < 52; i++) {
+          delete cards[i];
+          cards[i] = nullptr;
+        }
+      }
+};
+
 #endif
