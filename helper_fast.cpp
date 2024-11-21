@@ -46,8 +46,10 @@ int main(const int argc, const char* argv[]) {
     }
     int cardsToExclude[0][2] = {};
     combination(buckets, argc - 1, curr_hand, 0, cardsToExclude);
+    for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; }
+    cout << endl;
     int total_hands = 0;
-    for (int i = 0; i < argc; i++) { total_hands += buckets[i]; }
+    for (int i = 0; i < 10; i++) { total_hands += buckets[i]; }
     for (int i = 9; i > -1; i--) {
         cout << HANDS[i] << ":";
         for (int j = HANDS[i].length(); j < 16; j++) { cout << " "; } // align percentages. 16 comes from the fact that "Three of a Kind" has 15 characters
@@ -161,14 +163,16 @@ void find_best_hand(int (&buckets)[10], int hand[7][2]) {
             best_hand[0][0] = FLUSH;
             for (int i = 1; i < 6; i++) { best_hand[i][0] = cards_in_suit[i - 1][0]; best_hand[i][1] = cards_in_suit[i - 1][1]; }
         }
-        if (straight[0][0] == 14) {
+        else if (straight[0][0] == 14) {
             buckets[ROYAL_FLUSH]++;
             best_hand[0][0] = ROYAL_FLUSH;
             for (int i = 1; i < 6; i++) { best_hand[i][0] = straight[i - 1][0]; best_hand[i][1] = straight[i - 1][1]; }
         }
-        buckets[STRAIGHT_FLUSH]++;
-        best_hand[0][0] = STRAIGHT_FLUSH;
-        for (int i = 1; i < 6; i++) { best_hand[i][0] = straight[i - 1][0]; best_hand[i][1] = straight[i - 1][1]; }
+        else {
+            buckets[STRAIGHT_FLUSH]++;
+            best_hand[0][0] = STRAIGHT_FLUSH;
+            for (int i = 1; i < 6; i++) { best_hand[i][0] = straight[i - 1][0]; best_hand[i][1] = straight[i - 1][1]; }
+        }
     }
     else {
         int new_hand[7][2];
