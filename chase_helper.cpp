@@ -1,7 +1,9 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <stdlib.h>
 #include <cmath>
+#include "cards.h"
 
 using namespace std;
 
@@ -23,51 +25,346 @@ const int HIGH_CARD = 0;
 // Tweakable Constants
 const int PERCENT_DECIMALS = 5;
 
-int* card_to_tuple(string strCard);
-string hand_to_string(int hand_len, const int hand[][2]);
-void combination(int (&buckets)[10], int hand_size, int curr_hand[7][2], int num_to_exclude, int cards_to_exclude[][2]);
+Card strToCard(string strCard);
+string handToString(int handLen, Card hand[]);
+bool checkInHand(int handLen, const Card hand[], Card card);
+bool addToHand(int handLen, Card hand[]);
+void displayProbs(int handLen, Card hand[]);
+void calcBuckets(int handLen, Card hand[7], int (&buckets)[10]);
+void calcBestHand(Card hand[7], int (&results)[6]);
+int containsStraight(const int (&rcount)[15]);
+void highestKinds(int rcount[15], int (&countVals)[5][2]);
+void nlargest(int arrSize, int vals[], int num, int maxima[]);
+
+
 
 int main(const int argc, const char* argv[]){
-    int* card;
+    Card card;
     string strCard;
-    int buckets[10] = {0,0,0,0,0,0,0,0,0,0};
-    int currHand[7][2] = {{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}};
+    Card currHand[7];
 
-    for(int i = 1; i < argc; i++){
+
+    for (int i = 1; i < argc; i++){
         strCard = argv[i];
-        card = card_to_tuple(strCard);
-        currHand[i-1][0] = card[0];
-        currHand[i-1][1] = card[1];
+        card = strToCard(strCard);
+        currHand[i-1] = card;
     }
-    cout << hand_to_string(argc-1,currHand) << endl;
+    int numInHand = argc-1;
+
+    system("clear");
+    while (numInHand < 2 ) {
+        cout << "Your hand: " << handToString(numInHand,currHand) << endl;
+        while (!addToHand(numInHand,currHand)) {}
+        system("clear");
+        numInHand++;
+    }
+
+
+    while (numInHand < 7) {
+        system("clear");
+        cout << "Your hand: " << handToString(numInHand,currHand) << endl;
+        cout << "calculating combos" << endl;
+        displayProbs(numInHand, currHand);
+        while (!addToHand(numInHand,currHand)) {}
+        numInHand++;
+    }
+
+    system("clear");
+    cout << "Your hand: " << handToString(numInHand,currHand) << endl;
+    int result[6] = {0};
+    calcBestHand(currHand,result);
+    cout << "best " << result[0] << endl;
 }
 
-int* card_to_tuple(string strCard) {
-    static int intCard[2];
+Card strToCard(string strCard) {
+    Rank r;
+    Suit s;
     switch (strCard[strCard.size()-1]) {
-        case 'd': intCard[1] = 0; break;
-        case 'c': intCard[1] = 1; break;
-        case 'h': intCard[1] = 2; break;
-        case 's': intCard[1] = 3; break;
-        default: break; // FIXME: add error handling
+        case 'd': s = DIAMONDS; break;
+        case 'c': s = CLUBS; break;
+        case 'h': s = HEARTS; break;
+        case 's': s = SPADES; break;
+        default:
+            stringstream ss;
+            ss << strCard << " is an invalid card name";
+            throw std::invalid_argument(ss.str());
+            break;
     }
     strCard.pop_back();
-    if (strCard == "j") { intCard[0] = 11; }
-    else if (strCard == "q") { intCard[0] = 12; }
-    else if (strCard == "k") { intCard[0] = 13; }
-    else if (strCard == "a") { intCard[0] = 14; }
-    else if ( 1 < stoi(strCard) && stoi(strCard) < 11) { intCard[0] = stoi(strCard); }
-    else {} // FIXME: add error handling
-    return intCard;
+    if (strCard == "j") { r = JACK; }
+    else if (strCard == "q") { r = QUEEN; }
+    else if (strCard == "k") { r = KING; }
+    else if (strCard == "a") { r = ACE; }
+    else if ( 1 < stoi(strCard) && stoi(strCard) < 11) { r = static_cast<Rank>(stoi(strCard)); }
+    else {
+        stringstream ss;
+        ss << strCard << " is an invalid card name";
+        throw std::invalid_argument(ss.str());
+    }
+    Card newcard(r,s);
+    return newcard;
 }
 
-string hand_to_string(const int hand_len, const int hand[][2]) {
+string handToString(int handLen, Card hand[]) {
     stringstream ss;
-    ss << "[" << RANKS[hand[0][0]] << SUITS[hand[0][1]];
-    for (int i = 1; i < hand_len; i++) {
-        ss << ", " << RANKS[hand[i][0]] << SUITS[hand[i][1]];
+    if (handLen > 0){
+        ss << "[" << hand[0].toString();
+    } else {
+        ss << "[";
+    }
+    
+    for (int i = 1; i < handLen; i++) {
+        ss << ", " << hand[i].toString();
     }
     ss << "]";
+    ss << " (" << handLen << " cards)";
     return ss.str();
 }
 
+bool checkInHand(int handLen, const Card hand[], Card card) {
+    for (int i = 0; i < handLen; i++) {
+        if (card == hand[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool addToHand(int handLen, Card hand[]) {
+    string strCard;
+    Card card;
+    cout << "enter card: ";
+    cin >> strCard;
+    cout << endl;
+    try{
+        card = strToCard(strCard);
+        if (checkInHand(handLen, hand, card)) {
+            cout << strCard << " already in hand. Try again." << endl;
+            return false;
+        }
+        hand[handLen] = card;
+        return true;
+    } catch (std::invalid_argument except) {
+        cout << strCard << " is not a valid card." << endl;
+    }
+    return false;
+}
+
+void displayProbs(int handLen, Card hand[]) {
+    cout << "with " << handLen << " cards, you havs a 0% chance of winning" << endl;
+    int buckets [10] = {0};
+    Card workingHand[7];
+    for(int i = 0; i < handLen; i++) {
+        workingHand[i] = hand[i];
+    }
+    calcBuckets(handLen, workingHand, buckets);
+    int bucketSum = 0;
+    for (int i = 0; i < 10; i++) {
+        bucketSum += buckets[i];
+    }
+    double probs[10];
+    for (int i = 0; i < 10; i++){
+        probs[i] = (double)buckets[i]/(double)bucketSum;
+    }
+    cout << "Royal Flush: " << probs[9] << endl;
+    cout << "Straight Flush: " << probs[8] << endl;
+    cout << "Four Kind: " << probs[7] << endl;
+    cout << "Full House: " << probs[6] << endl;
+    cout << "Flush: " << probs[5] << endl;
+    cout << "Straight: " << probs[4] << endl;
+    cout << "Three Kind: " << probs[3] << endl;
+    cout << "Two Pair: " << probs[2] << endl;
+    cout << "Pair: " << probs[1] << endl;
+    cout << "High Card: " << probs[0] << endl;
+}
+
+void calcBuckets(int handLen, Card hand[7], int (&buckets)[10]) {
+    if (handLen == 7) {
+        int result[6] = {0};
+        calcBestHand(hand, result);
+        buckets[result[0]] += 1;
+        return;
+    } else {
+        Card newhand[7];
+        for (int i = 0; i < handLen; i++) {
+            newhand[i] = hand[i];
+        }
+        for (int r = 2; r < 15; r++) {// loop through the ranks
+            Card newcard;
+            for (int s = 0; s < 4; s++) {// loop through the suits
+                newcard = Card(r,s);
+                if (checkInHand(handLen, hand, newcard)) {
+                    continue;
+                } else {
+                    newhand[handLen] = newcard;
+                    calcBuckets(handLen+1, newhand, buckets);
+                }
+            }
+        }
+    }
+}
+
+void calcBestHand(Card hand[7], int (&results)[6]) {
+    int scount[4] = {0};
+    int rcount[15] = {0};
+    for (int i = 0; i < 7; i++) {
+        scount[hand[i].getSuit()]++;
+    }
+    bool flush = false;
+    int idx = 0;
+    for (int i = 0; i < 4; i++) {
+        if (scount[i] > 4) {
+            flush = true;
+            idx = i;
+            break;
+        }
+    }
+    if (flush) {
+        for (int i = 0; i < 7; i++) {
+            if (hand[i].getSuit() == idx) {
+                rcount[hand[i].getRank()]++;
+            }
+        }
+        int high = containsStraight(rcount);
+        if (high==0) { // flush
+            results[0] = 5;
+            int idx = 1;
+            for (int i = 12; i > -1; i--) {
+                if (rcount[i] > 0) {
+                    results[idx] = i;
+                    idx++;
+                    if (idx > 6) {
+                        break;
+                    }
+                }
+            }
+        } else if (high == 14) { // royal flush
+            results[0] = 9;
+        } else {
+            results[0] = 8;
+            results[1] = high;
+        }
+    } else {
+        // no flush
+        for (int i = 0; i < 7; i++) {
+            rcount[hand[i].getRank()]++;
+        }
+        int countVals[5][2];
+        highestKinds(rcount, countVals); // edits count_vals in place
+        if (countVals[0][0] == 4) { // four kind
+            int vals[4] = {countVals[1][1], countVals[2][1], countVals[3][1], countVals[4][1]};
+            int maxima[1];
+            nlargest(4,vals,1,maxima);
+            results[0] = 7;
+            results[1] = countVals[0][1];
+            results[2] = maxima[0];
+        }
+        if (countVals[0][0] > 2) {
+            if (countVals[1][0] > 1) { // full house
+                results[0] = 6;
+                results[1] = countVals[0][1];
+                results[2] = countVals[1][1];
+            }
+            int high = containsStraight(rcount);
+            if (high > 0) { // straight
+                results[0] = 4;
+                results[1] = high;
+            }
+            // three of a kind
+            int vals[4] = {countVals[1][1], countVals[2][1], countVals[3][1], countVals[4][1]};
+            int maxima[2];
+            nlargest(4,vals,2,maxima);
+            results[0] = 3;
+            results[1] = countVals[0][1];
+            results[2] = maxima[0];
+            results[3] = maxima[1];
+        }
+        int high = containsStraight(rcount);
+        if (high>0) { // straight
+            results[0] = 4;
+            results[1] = high;
+        }
+        if (countVals[1][0] == 2) { // two pair
+            int vals[3] = {countVals[2][1], countVals[3][1], countVals[4][1]};
+            int maxima[1];
+            nlargest(3,vals,1,maxima);
+            results[0] = 2;
+            results[1] = countVals[0][1];
+            results[2] = countVals[1][1];
+            results[3] = maxima[0];
+        }
+        if (countVals[0][0] == 2) { // pair
+            int vals[4] = {countVals[1][1], countVals[2][1], countVals[3][1], countVals[4][1]};
+            int maxima[3];
+            nlargest(4,vals,3,maxima);
+            results[0] = 1;
+            results[1] = countVals[0][1];
+            results[2] = maxima[0];
+            results[3] = maxima[1];
+            results[4] = maxima[2];
+        }
+        // high card
+        int vals[5] = {countVals[0][1], countVals[1][1], countVals[2][1], countVals[3][1], countVals[4][1]};
+        int maxima[5];
+        nlargest(5,vals,5,maxima);
+        results[0] = 0;
+        results[1] = maxima[0];
+        results[2] = maxima[1];
+        results[3] = maxima[2];
+        results[4] = maxima[3];
+        results[5] = maxima[4];
+    }
+}
+
+int containsStraight(const int (&rcount)[15]) {
+    bool finished;
+    for (int high = 14; high > 5; high--) {
+        finished = true;
+        for (int run = high; run > high-5; run--) {
+            if (rcount[run] == 0) {
+                finished = false;
+                break;
+            }
+        }
+        if (finished) {return high;}
+    }
+    return 0;
+}
+
+void highestKinds(int rcount[15], int (&countVals)[5][2]) { // don't pass rcount by reference, so I can edit it
+    int max;
+    int idxMax;
+    for (int i = 0; i < 5; i++) {
+        max = -1;
+        idxMax = 0;
+        for (int ii = i; ii < 15; ii++) {
+            if (rcount[ii] > max) {
+                max = rcount[ii];
+                idxMax = ii;
+            }
+        }
+        // swap the max to be in the front
+        rcount[idxMax] = rcount[i];
+        rcount[i] = max;
+        countVals[i][0] = max;
+        countVals[i][1] = idxMax;
+    }
+}
+
+void nlargest(int arrSize, int vals[], int num, int maxima[]) { // dont pass vals by reference, so I can edit it
+    int max;
+    int idxMax;
+    for (int i = 0; i < num; i++) {
+        max = -1;
+        idxMax = 0;
+        for (int ii = i; ii < arrSize; ii++) {
+            if (vals[ii] > max) {
+                max = vals[ii];
+                idxMax = ii;
+            }
+        }
+        vals[idxMax] = vals[i];
+        vals[i] = max;
+        maxima[i] = max;
+    }
+}

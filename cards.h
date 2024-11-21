@@ -1,6 +1,7 @@
 #ifndef CARDS_H
 #define CARDS_H
 
+// #include <iostream> // TODO: delete this line when done with testing
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@ class Card {
     Suit suit;
 
   public:
+    Card() : rank(ACE), suit(SPADES) {}
     Card(Rank rank, Suit suit) : rank(rank), suit(suit) {}
     Card(int rank, int suit) : rank(static_cast<Rank>(rank)), suit(static_cast<Suit>(suit)) {}
     Card(Rank rank, int suit) : rank(rank), suit(static_cast<Suit>(suit)) {}
@@ -36,14 +38,48 @@ class Card {
       else {} // FIXME: add error handling
     }
 
-    Rank getRank() const { return rank; }
+    const Rank getRank() const { return rank; }
 
-    Suit getSuit() const { return suit; }
+    const Suit getSuit() const { return suit; }
 
     Card& operator=(const Card &other) {
       rank = other.rank;
       suit = other.suit;
       return *this;
+    }
+
+    const string toString() {
+      stringstream ss;
+      switch (rank) {
+        case ACE: ss << "a"; break;
+        case KING: ss << "k"; break;
+        case QUEEN: ss << "q"; break;
+        case JACK: ss << "j"; break;
+        case TEN: ss << "10"; break;
+        case NINE: ss << "9"; break;
+        case EIGHT: ss << "8"; break;
+        case SEVEN: ss << "7"; break;
+        case SIX: ss << "6"; break;
+        case FIVE: ss << "5"; break;
+        case FOUR: ss << "4"; break;
+        case THREE: ss << "3"; break;
+        case TWO: ss << "2"; break;
+        default:
+          stringstream ee;
+          ee << "invalid card rank" << rank;
+          throw ee.str();
+      }
+      switch (suit) {
+        case SPADES: ss << "s"; break;
+        case HEARTS: ss << "h"; break;
+        case CLUBS: ss << "c"; break;
+        case DIAMONDS: ss << "d"; break;
+        default:
+          stringstream ee;
+          ee << "invalid card suit" << suit;
+          throw ee.str();
+      }
+      return ss.str();
     }
 
     friend bool operator<(const Card &card1, const Card &card2) {
