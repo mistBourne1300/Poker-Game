@@ -146,7 +146,7 @@ def calc_best_hand(hand):
             maximum = nlargest(1,count_vals[2:,1])
             return 2,count_vals[0,1],count_vals[1,1],maximum,0,0 # two pair
         if count_vals[0,0] == 2:
-            [maximum,submax,subsub] = nlargest(3,count_vals[:,1])
+            [maximum,submax,subsub] = nlargest(3,count_vals[1:,1])
             return 1,count_vals[0,1],maximum,submax,subsub,0 # pair
         high_cards = nlargest(5,count_vals[:,1])
         return 0,high_cards
@@ -166,7 +166,7 @@ def contains_straight(rcount):
 
 def highest_kinds(rcount):
     argmaxxes = np.argsort(rcount)[::-1]
-    return np.array([(rcount[argmaxxes[i]], argmaxxes[i]) for i in range(5) if rcount[argmaxxes[i]] > 0])
+    return np.array([(rcount[argmaxxes[i]], argmaxxes[i]) for i in range(5)])# if rcount[argmaxxes[i]] > 0])
 
 def str_to_tuple(cardstr):
     rank,suit = strranks.index(cardstr[:-1]), strsuits.index(cardstr[-1])
@@ -211,10 +211,15 @@ def gen_combos(hand):
     num_remaining = 7-len(hand)
     dummy_deck = remaining_cards.copy()
     all_combos = []
-    for table in tqdm(combinations(remaining_cards,num_remaining),desc="creating combos", leave=False):
+    num_created = 0
+    # for table in tqdm(combinations(remaining_cards,num_remaining),desc="creating combos", leave=False):
+    for table in combinations(remaining_cards,num_remaining):
         for card in table:
             dummy_deck.remove(card)
         for c in combinations(dummy_deck,2):
+            num_created += 1
+            if num_created % 10000 == 0:
+                print(f" creating combos: {num_created}", end="\r")
             all_combos.append(hand+list(table)+list(c))
         for card in table:
             dummy_deck.append(card)
