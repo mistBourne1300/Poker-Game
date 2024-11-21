@@ -70,6 +70,7 @@ class Card {
 class Deck {
     private:
     vector<Card*> cards;
+    int next_deal = 0;
 
     public:
       Deck() {
@@ -84,6 +85,16 @@ class Deck {
           delete cards[i];
           cards[i] = nullptr;
         }
+      }
+
+      Card* deal() {
+        return cards.at(next_deal++ - 1);
+        // FIXME: add error checking in case there are no cards left
+      }
+
+      void shuffle() {
+        next_deal = 0;
+        // FIXME: Implement shuffling
       }
 };
 
