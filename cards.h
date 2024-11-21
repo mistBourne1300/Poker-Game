@@ -130,7 +130,12 @@ class Deck {
 
       void shuffle() {
         next_deal = 0;
-        // FIXME: Implement shuffling
+        random_device rd;
+        mt19937 gen(rd());
+        for (int i = 0; i < 51; i++) {
+          uniform_int_distribution<> dis(i, 52);
+          swap(cards[i],cards[dis(gen)]);
+         }
       }
 };
 
