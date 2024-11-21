@@ -248,6 +248,7 @@ def display_probs_mp_win_loss(hand):
         self_buckets += self_partial
         opp_buckets += opp_partial
         win_loss_tally += win_partial
+    fancy_out(f"self buckets: {self_buckets}")
     self_probs = self_buckets/np.sum(self_buckets)
     opp_probs = opp_buckets/np.sum(opp_buckets)
     win_probs = win_loss_tally/np.sum(win_loss_tally)
