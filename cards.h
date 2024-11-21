@@ -103,40 +103,40 @@ class Card {
     }
 };
 
-class Deck {
-    private:
-    vector<Card*> cards;
-    int next_deal = 0;
+// class Deck {
+//     private:
+//     vector<Card*> cards;
+//     int next_deal = 0;
 
-    public:
-      Deck() {
-        for (int suit = 0; suit < 4; suit++) {
-          for (int rank = 2; rank < 14; rank++) {
-            cards.push_back(new Card(rank, suit));
-          }
-        }
-      }
-      ~Deck() {
-        for (int i = 0; i < 52; i++) {
-          delete cards[i];
-          cards[i] = nullptr;
-        }
-      }
+//     public:
+//       Deck() {
+//         for (int suit = 0; suit < 4; suit++) {
+//           for (int rank = 2; rank < 14; rank++) {
+//             cards.push_back(new Card(rank, suit));
+//           }
+//         }
+//       }
+//       ~Deck() {
+//         for (int i = 0; i < 52; i++) {
+//           delete cards[i];
+//           cards[i] = nullptr;
+//         }
+//       }
 
-      Card* deal() {
-        return cards.at(next_deal++ - 1);
-        // FIXME: add error checking in case there are no cards left
-      }
+//       Card* deal() {
+//         return cards.at(next_deal++);
+//         // FIXME: add error checking in case there are no cards left
+//       }
 
-      void shuffle() {
-        next_deal = 0;
-        random_device rd;
-        mt19937 gen(rd());
-        for (int i = 0; i < 51; i++) {
-          uniform_int_distribution<> dis(i, 52);
-          swap(cards[i],cards[dis(gen)]);
-         }
-      }
-};
+//       void shuffle() {
+//         next_deal = 0;
+//         random_device rd;
+//         mt19937 gen(rd());
+//         for (int i = 0; i < 51; i++) {
+//           uniform_int_distribution<> dis(i, 52);
+//           swap(cards[i],cards[dis(gen)]);
+//          }
+//       }
+// };
 
 #endif

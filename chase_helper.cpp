@@ -160,8 +160,10 @@ void displayProbs(int handLen, Card hand[]) {
     calcBuckets(handLen, workingHand, buckets);
     int bucketSum = 0;
     for (int i = 0; i < 10; i++) {
+        cout << buckets[i] << " ";
         bucketSum += buckets[i];
     }
+    cout << endl;
     double probs[10];
     for (int i = 0; i < 10; i++){
         probs[i] = (double)buckets[i]/(double)bucketSum;
@@ -348,6 +350,13 @@ void highestKinds(int rcount[15], int (&countVals)[5][2]) { // don't pass rcount
         rcount[i] = max;
         countVals[i][0] = max;
         countVals[i][1] = idxMax;
+    }
+    cout << "sorted: " << endl;
+    for (int i = 0; i < 5; i++ ) {
+        for (int ii = 0; ii < 2; ii++) {
+            cout << countVals[i][ii] << " ";
+        }
+        cout << endl;
     }
 }
 
