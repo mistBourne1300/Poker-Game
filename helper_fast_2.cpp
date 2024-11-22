@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <execution>
+#include <algorithm>
 #include <cmath>
 #include "Cards.h"
 // #include <bits/locale_conv.h>
@@ -13,7 +15,9 @@ constexpr int PERCENT_DECIMALS = 5;
 
 void generate_combinations(int hand_size, vector<vector<Card>> &combinations, vector<Card> curr_hand, vector<Card> cards_to_exclude);
 void generate_combinations_rec(int hand_size, vector<vector<Card>> &combinations, vector<Card> curr_hand, vector<Card> cards_to_exclude);
-void find_best_hand(vector<Card> hand);
+Hand find_best_hand(vector<Card> const hand);
+vector<Card> find_straight(const vector<Card> &hand);
+void kind_sort(vector<Card> &hand);
 
 int main(const int argc, const char* argv[]) {
     int buckets[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -21,12 +25,9 @@ int main(const int argc, const char* argv[]) {
     for (int i = 1; i < argc; i++) { hand.push_back(Card(argv[i])); }
     vector<vector<Card>> combinations;
 	generate_combinations(7, combinations, hand, vector<Card> {});
-	for (vector<vector<Card>>::iterator hand_ptr = combinations.begin(); hand_ptr != combinations.end(); hand_ptr++) {
-    	for (vector<Card>::iterator card_ptr = hand_ptr->begin(); card_ptr != hand_ptr->end(); card_ptr++) {
-        	cout << card_ptr->toString() << " ";
-        }
-	    cout << endl;
-	}
+	for_each(execution::par, combinations.begin(), combinations.end(), [](vector<Card> &hand) {
+        Hand myBestHand = find_best_hand(hand);
+	});
     return 0;
 }
 
@@ -81,61 +82,50 @@ void generate_combinations_rec(int hand_size, vector<vector<Card>> &combinations
     }
 }
 
-void find_best_hand(vector<Card> hand) {
+Hand find_best_hand(vector<Card> const hand) {
     // check for a flush
-    int suits[4] = {0,0,0,0}; // tally of how many of each suit there are
-    for (int i = 0; i < 7; i++) { suits[hand[i][1]]++; } // count each suit
+    int suits[5] = {0,0,0,0,0}; // tally of how many of each suit there are
+    for (Card card : hand) { suits[card.getSuit()]++; } // count each suit
     int num_suited = 0; // number of cards in the suit with the most cards in it
     for (int i = 0; i < 4; i++) { if (num_suited < suits[i]) { num_suited = suits[i]; } }
 
     if (num_suited > 4) {
         // find which suit has the flush
-        int flush_suit = 0;
-        for (int i = 1; i < 4; i++) { if (suits[i] > suits[flush_suit]) flush_suit = i; }
-        // extract the ranks of the cards in the flush suit
-        int cards_in_suit[num_suited][2];
-        int out_i = 0;
-        for (int i = 0; i < 7; i++) {
-            if (hand[i][1] == flush_suit) {
-                cards_in_suit[out_i][0] = hand[i][0];
-                cards_in_suit[out_i][1] = hand[i][1];
-                out_i++;
+        Suit flush_suit = NULL_SUIT;
+        for (int i = 1; i < 5; i++) { if (suits[i] > suits[flush_suit]) flush_suit = static_cast<Suit>(i); }
+        // extract the cards in the flush suit
+        vector<Card> cards_in_suit;
+        for (Card card : hand) {
+            if (card.getSuit() == flush_suit) {
+                cards_in_suit.push_back(card);
             }
         }
-        sort_descending(num_suited, cards_in_suit);
+        sort(cards_in_suit.begin(), cards_in_suit.end(), [](const Card &a, const Card &b) { return a > b; });
         // check if there is a straight
-        int straight[5][2] = {{0,0},{0,0},{0,0},{0,0},{0,0}};
-        find_straight(num_suited, cards_in_suit, straight);
+        vector<Card> straight = find_straight(cards_in_suit);
         // process the data from straight
-        if (straight[0][0] == 0) {
-            buckets[FLUSH]++;
-            best_hand[0][0] = FLUSH;
-            for (int i = 1; i < 6; i++) { best_hand[i][0] = cards_in_suit[i - 1][0]; best_hand[i][1] = cards_in_suit[i - 1][1]; }
-        }
-        else if (straight[0][0] == 14) {
-            buckets[ROYAL_FLUSH]++;
-            best_hand[0][0] = ROYAL_FLUSH;
-            for (int i = 1; i < 6; i++) { best_hand[i][0] = straight[i - 1][0]; best_hand[i][1] = straight[i - 1][1]; }
-        }
-        else {
-            buckets[STRAIGHT_FLUSH]++;
-            best_hand[0][0] = STRAIGHT_FLUSH;
-            for (int i = 1; i < 6; i++) { best_hand[i][0] = straight[i - 1][0]; best_hand[i][1] = straight[i - 1][1]; }
+        switch (straight.at(0).getRank()) {
+            case NULL_RANK:
+                return {FLUSH, vector<Card>(cards_in_suit.begin(), cards_in_suit.begin() + 5)};
+            case ACE:
+                return {ROYAL_FLUSH, straight};
+            default:
+                return {STRAIGHT_FLUSH, straight};
         }
     }
     else {
-        int new_hand[7][2];
-        for (int i = 0; i < 7; i++) { new_hand[i][0] = hand[i][0]; new_hand[i][1] = hand[i][1]; }
-        kind_sort(7, new_hand); // I don't know why this wouldn't just accept hand, so I made new_hand and it just worked
-        int straight[5][2] = {{0,0},{0,0},{0,0},{0,0},{0,0}};
-        find_straight(7, new_hand, straight);
-        if (new_hand[0][0] == new_hand[3][0]) {
-            buckets[FOUR_OF_A_KIND]++;
-            best_hand[0][0] = FOUR_OF_A_KIND;
-            for (int i = 1; i < 5; i++) { best_hand[i][0] = new_hand[i - 1][0]; best_hand[i][1] = new_hand[i - 1][1]; }
-            int high_card = 4;
-            for (int i = 5; i < 7; i++) { if (new_hand[i][0] > new_hand[high_card][0]) { high_card = i; } }
-            best_hand[5][0] = new_hand[high_card][0]; best_hand[5][1] = new_hand[high_card][1];
+        vector<Card> straight = find_straight(hand);
+        vector<Card> sorted_hand = hand;
+        kind_sort(sorted_hand);
+        if (hand.at(0).getRank() == hand.at(3).getRank()) {
+            Card high_card = hand.at(4);
+            for (Card card : vector<Card> {hand.begin() + 4, hand.end()}) {
+                if (card > high_card) {
+                    high_card = card;
+                }
+            }
+            sorted_hand.at(4) = high_card; // huge abuse of notation, but works since sorted_hand is a dummy copy
+            return {FOUR_OF_A_KIND, vector<Card>(sorted_hand.begin(), sorted_hand.begin() + 5)};
         }
         else if (new_hand[0][0] == new_hand[2][0] && new_hand[3][0] == new_hand[4][0]) {
             buckets[FULL_HOUSE]++;
@@ -200,4 +190,43 @@ void find_best_hand(vector<Card> hand) {
     // combination(opp_buckets,7,opp_hand,2,my_hand);
     int num_win_cases = 0;
     int num_cases = 0;
+}
+
+vector<Card> find_straight(const vector<Card> &hand) {
+    vector<Card> straight;
+    for (int i = 0; i < hand.size() - 4; i++) {
+        straight.push_back(hand.at(i));
+        for (int j = 1; j < 5; j++) {
+            if (hand.at(j).getRank() < straight.back().getRank() - 1) { break; }
+            if (hand.at(j).getRank() == straight.back().getRank() - 1) {
+                straight.push_back(hand.at(i + j));
+            }
+        }
+        if (straight.size() == 5) { return straight; } // if the above code finds a whole straight, be done
+        straight.clear();
+    }
+    return vector<Card> {Card()};
+}
+
+void kind_sort(vector<Card> &hand) {
+    int counts[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    for (Card card : hand) { counts[card.getRank()]++; }
+    int num_ranks = 0;
+    int num_sorted = 0;
+    Card card;
+    for (int i = 2; i < 15; i++) { num_ranks += (counts[i] != 0); }
+    for (int j = 0; j < num_ranks; j++) {
+        Rank max_rank = ACE;
+        for (int i = 13; i > 1; i--) { if (counts[i] > counts[max_rank]) { max_rank = static_cast<Rank>(i); } } // find most common card. A tie goes to the higher value
+        for (Card card1 : hand) {
+            for (Card card2 : hand) {
+                if ((card1.getRank() != max_rank && card2.getRank() == max_rank)
+                    || (card1.getRank() == max_rank && card2.getRank() == max_rank && card1.getSuit() < card2.getSuit())) {
+                    swap(card1, card2);
+                }
+            }
+        }
+        num_sorted += counts[max_rank];
+        counts[max_rank] = 0;
+    }
 }
