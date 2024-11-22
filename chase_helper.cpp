@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <vector>
 #include <stdlib.h>
 #include <cmath>
 #include "cards.h"
@@ -340,7 +341,7 @@ void highestKinds(int rcount[15], int (&countVals)[5][2]) { // don't pass rcount
         max = -1;
         idxMax = 0;
         for (int ii = i; ii < 15; ii++) {
-            if (rcount[ii] > max) {
+            if (rcount[ii] >= max) {
                 max = rcount[ii];
                 idxMax = ii;
             }
@@ -351,6 +352,11 @@ void highestKinds(int rcount[15], int (&countVals)[5][2]) { // don't pass rcount
         countVals[i][0] = max;
         countVals[i][1] = idxMax;
     }
+    cout << "rcount" << endl;
+    for (int i = 0; i < 15; i++) {
+        cout << rcount[i] << " ";
+    }
+    cout << endl << endl;
     cout << "sorted: " << endl;
     for (int i = 0; i < 5; i++ ) {
         for (int ii = 0; ii < 2; ii++) {

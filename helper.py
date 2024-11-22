@@ -26,21 +26,139 @@ num_to_hand = ["high card","pair","two pair", "three kind","straight","flush","f
 prog_desc = "This is a probability calculator for poker hands. \
     This (eventually) will calculate the probability of various poker hands at each stage of a Texas Hold 'Em hand."
 helpstring = f"the valid card arguments are {str_remaining}"
+# changes how often progress bars are updated. small numbers are cool-looking, 
+# but results in more print locks, (and obviously more prints) that slow down computation
+MININTERVAL = 0.5
 
-def calc_self_and_opp_buckets_and_win_counter_mp(combos,q:mp.SimpleQueue):
+def display_probs_mp(hand):
+    combos = [list(c) for c in tqdm(combinations(remaining_cards,7-len(hand)),desc="generating combos",leave=False)]
+    cpus = mp.cpu_count()
+    chunk_size = len(combos)//cpus
+    processes = []
+    q = mp.SimpleQueue()
+    lock = mp.Lock()
+    print(f" starting {cpus} processes...",end="\r")
+    for offset,i in enumerate(range(0,len(combos),chunk_size)):
+        # print(i,":",i+chunk_size)
+        p = mp.Process(target=calc_buckets_mp, args=(hand,combos[i:i+chunk_size],q,offset,lock))
+        p.start()
+        processes.append(p)
+    
+    buckets = np.zeros(10)
+    for p in processes:
+        p.join()
+    while not q.empty():
+        small_buckets = q.get()
+        buckets += small_buckets
+    
+    os.system("clear")
+    print(f"your hand: {hand_to_str(hand)}")
+    probs = buckets/np.sum(buckets)
+    your_msg = "Your Hand Probabilities"
+    terminal_len = os.get_terminal_size()[0]
+    bar="-"*terminal_len
+    fancy_out(f"{your_msg}")
+    fancy_out(f"{bar}")
+    for i in range(len(probs)-1,-1,-1):
+        fancy_out(f"{num_to_hand[i]:.<16}: {np.round(probs[i],7)}")
+
+def calc_buckets_mp(hand,combos,q:mp.SimpleQueue,offset:int, lock):
+    """
+        here, we assume combos is a list of lists, not a list of tuples
+    """
+    buckets = np.zeros(10)
+    lock.acquire()
+    pbar = tqdm(total=len(combos),desc=f"chunk {offset}", position=offset,leave=False)
+    lock.release()
+    start = time.time()
+    old = 0
+    for i,c in enumerate(combos):
+        if time.time() - start > MININTERVAL:
+            lock.acquire()
+            pbar.update(i-old)
+            lock.release()
+            old = i
+            start = time.time()
+        revealed = hand + c
+        buckets[calc_best_hand(revealed)[0]] += 1
+    pbar.close()
+    q.put(buckets)
+
+
+def gen_self_combos(hand):
+    num_remaining = 7-len(hand)
+    return [list(c) for c in tqdm(combinations(remaining_cards,num_remaining),desc="creating combos",leave=False)]
+
+def gen_opp_combos():
+    return [list(c) for c in tqdm(combinations(remaining_cards,2),desc="generating combos",leave=False)]
+
+def display_probs_mp_win_loss(hand):
+    assert len(hand) + len(remaining_cards) == 52
+    cpus = mp.cpu_count()
+    processes = []
+    if len(hand) < 7:
+        combos = gen_self_combos(hand)
+        chunk_size = len(combos)//cpus
+        q = mp.SimpleQueue()
+        lock = mp.Lock()
+        print(f" starting {cpus} processes...",end="\r")
+        for offset,i in enumerate(range(0,len(combos), chunk_size)):
+            p = mp.Process(target=calc_self_and_opp_buckets_and_win_counter_mp, args=(hand,combos[i:i+chunk_size],q,offset,lock))
+            p.start()
+            processes.append(p)
+    elif len(hand) == 7:
+        combos = gen_opp_combos()
+        chunk_size = len(combos)//cpus
+        q = mp.SimpleQueue()
+        print(f" starting {cpus} processes...",end="\r")
+        for i in range(0,len(combos),chunk_size):
+            p = mp.Process(target=final_calc, args=(hand,combos[i:i+chunk_size],q))
+            p.start()
+            processes.append(p)
+    else:
+        raise RuntimeError(f"somehow, hand length became {len(hand)}")
+
+    self_buckets = np.zeros(10)
+    opp_buckets = np.zeros(10)
+    win_loss_tally = np.zeros(3)
+    for p in processes:
+        p.join()
+    while not q.empty():
+        self_partial, opp_partial, win_partial = q.get()
+        self_buckets += self_partial
+        opp_buckets += opp_partial
+        win_loss_tally += win_partial
+    self_probs = self_buckets/np.sum(self_buckets)
+    opp_probs = opp_buckets/np.sum(opp_buckets)
+    win_probs = win_loss_tally/np.sum(win_loss_tally)
+
+    os.system("clear")
+    print(f"your hand: {hand_to_str(hand)}")
+    your_msg = "Your Hand Probabilities"
+    opp_msg = "Opponent Hand Probabilities"
+    terminal_len = os.get_terminal_size()[0]
+    bar="-"*terminal_len
+    fancy_out(f"{your_msg: <36}{opp_msg}")
+    fancy_out(f"{bar}")
+    for i in range(len(self_probs)-1,-1,-1):
+        fancy_out(f"{num_to_hand[i]:.<16}: {np.round(self_probs[i],7):<20}{num_to_hand[i]:.<16}: {np.round(opp_probs[i],7)}")
+    
+    win_msg = "Win probability:"
+    loss_msg = "Loss Probability:"
+    tie_msg = "Tie Probability:"
+    print()
+    fancy_out(f"{win_msg: <20}{np.round(win_probs[0],7)}")
+    fancy_out(f"{loss_msg: <20}{np.round(win_probs[1],7)}")
+    fancy_out(f"{tie_msg: <20}{np.round(win_probs[2],7)}")
+    print()
+
+def calc_self_and_opp_buckets_and_win_counter_mp(hand,combos,q:mp.SimpleQueue,offset:int,lock):
     """
         accepts a list of lists, eash sublist is a list of tuples that are of the form
         (rank,suit) for ranks 2-14 (inc.) and suits 0-3 (inc.)
-        each sublist L will have exactly 9 cards
-        and is broken down as such:
-            L[-2:]  = the opponent's hand
-            L[:2]   = your hand
-            L[2:-2] = the table cards
-        each of L[:-2] (your usable cards) and L[2:] (the opponents usable cards) will be passed into the calc_best_hand function
-        and the best hand returned. the opponent's and your tallied buckets wlll be updated, and a winner decided (ties allowed) 
-        the win/loss bucket will be a list of [num_wins, num_losses, num_ties]
-        we will then put your bucket, the opponent's bucket, and the win/loss bucket into q
-        for later retrieval by the parent process
+        each sublist L will have exactly 7 cards
+        we will then generate all combinations of opponent's hands, and use those to 
+        calculate the win/loss tallies
 
         Parameters:
             combos (list):          a list of lists of tuples (see above), each sublist contains all information
@@ -58,46 +176,67 @@ def calc_self_and_opp_buckets_and_win_counter_mp(combos,q:mp.SimpleQueue):
     self_buckets = np.zeros(10)
     opp_buckets = np.zeros(10)
     win_loss_tally = np.zeros(3)
-    for c in combos:
-        oppres = calc_best_hand(c[2:])
-        selfres = calc_best_hand(c[:-2])
-        self_best = selfres[0]
-        opp_best = oppres[0]
-        self_buckets[self_best] += 1
-        opp_buckets[opp_best] += 1
+    dummy_deck = remaining_cards.copy()
+    lock.acquire()
+    pbar = tqdm(total=len(combos),desc=f"chunk {offset}", position=offset, mininterval=MININTERVAL,leave=False)
+    lock.release()
+    start = time.time()
+    old = 0
+    for i,c in enumerate(combos):
+        if time.time() - start > MININTERVAL:
+            lock.acquire()
+            pbar.update(i-old)
+            lock.release()
+            old = i
+            start = time.time()
+        for card in c:
+            dummy_deck.remove(card)
+        selfhand = hand+c
+        selfres = calc_best_hand(selfhand)
+        self_buckets[selfres[0]] += 1
+        # print("hand:",hand+c)
+        for o in combinations(dummy_deck,2):
+            ophand = selfhand[2:] + list(o)
+            oppres = calc_best_hand(ophand)
+        
+            opp_buckets[oppres[0]] += 1
+
+            if selfres > oppres:
+                win_loss_tally[0] += 1
+            elif selfres < oppres:
+                win_loss_tally[1] += 1
+            else:
+                win_loss_tally[2] += 1
+        
+        for card in c:
+            dummy_deck.append(card)
+    pbar.close()
+    q.put((self_buckets, opp_buckets, win_loss_tally))
+
+def final_calc(hand,combos,q:mp.SimpleQueue):
+    """
+        this is very similar to the main method below, but it assumes hand is a complete collection of 7 cards
+        and that combos is the generated opponent cards (list of list of 2 cards each)
+    """
+    self_buckets = np.zeros(10)
+    opp_buckets = np.zeros(10)
+    win_loss_tally = np.zeros(3)
+    selfres = calc_best_hand(hand)
+    self_buckets[selfres[0]] += 1
+    for i,c in enumerate(combos):
+        ophand = hand[2:]+c
+        oppres = calc_best_hand(ophand)
+        opp_buckets[oppres[0]] += 1
+
         if selfres > oppres:
             win_loss_tally[0] += 1
         elif selfres < oppres:
             win_loss_tally[1] += 1
         else:
             win_loss_tally[2] += 1
-    
+    # pbar.close()
     q.put((self_buckets, opp_buckets, win_loss_tally))
 
-def calc_buckets_mp(hand,combos,q:mp.SimpleQueue):
-    """
-        here, we assume combos is a list of lists, not a list of tuples
-    """
-    buckets = np.zeros(10)
-    for c in combos:
-        revealed = hand + c
-        buckets[calc_best_hand(revealed)[0]] += 1
-    q.put(buckets)
-
-# def calc_buckets(hand):
-#     buckets = np.zeros(10)
-#     remain_to_turn = 7-len(hand)
-#     tot = comb(len(remaining_cards),remain_to_turn)
-#     i = 0
-#     start_time = time.time()
-#     for c in combinations(remaining_cards,r=remain_to_turn):
-#         if i%10000 == 0:
-#             print(f'  {i}/{tot}  {100*((i+1)/tot):.3f}% eta: {(time.time()-start_time)*((tot-i)/(i+1)):.0f} sec   ',end='\r')
-#         i += 1
-#         revealed = hand+list(c)
-#         buckets[calc_best_hand(revealed)] += 1
-        
-#     return buckets
 
 def calc_best_hand(hand):
     scount = np.zeros(4)
@@ -168,166 +307,102 @@ def highest_kinds(rcount):
     argmaxxes = np.argsort(rcount)[::-1]
     return np.array([(rcount[argmaxxes[i]], argmaxxes[i]) for i in range(5)])# if rcount[argmaxxes[i]] > 0])
 
+
 def str_to_tuple(cardstr):
     rank,suit = strranks.index(cardstr[:-1]), strsuits.index(cardstr[-1])
     return (rank, suit)
 
-# def display_probs(hand):
-#     buckets = calc_buckets(hand)
-#     print()
-#     probs = buckets/np.sum(buckets)
-#     for i in range(len(probs)-1,-1,-1):
-#         print(f"{num_to_hand[i]:.<16}: {probs[i]}")
+def tuple_to_str(cardtup):
+    return strranks[cardtup[0]] + strsuits[cardtup[1]]
 
-def display_probs_mp(hand):
-    combos = [list(c) for c in tqdm(combinations(remaining_cards,7-len(hand)),desc="creating combos", leave=False)]
-    cpus = mp.cpu_count()
-    chunk_size = len(combos)//cpus
-    processes = []
-    q = mp.SimpleQueue()
-    for i in tqdm(range(0,len(combos),chunk_size),desc="starting processes",leave=False):
-        # print(i,":",i+chunk_size)
-        p = mp.Process(target=calc_buckets_mp, args=(hand,combos[i:i+chunk_size],q))
-        p.start()
-        processes.append(p)
-    
-    buckets = np.zeros(10)
-    for p in tqdm(processes,desc="waiting for results",leave=False):
-        p.join()
-    while not q.empty():
-        small_buckets = q.get()
-        buckets += small_buckets
-    # q.close()
-    probs = buckets/np.sum(buckets)
-    your_msg = "Your Hand Probabilities"
-    terminal_len = os.get_terminal_size()[0]
-    bar="-"*terminal_len
-    fancy_out(f"{your_msg}")
-    fancy_out(f"{bar}")
-    for i in range(len(probs)-1,-1,-1):
-        fancy_out(f"{num_to_hand[i]:.<16}: {np.round(probs[i],7)}")
+def hand_to_str(hand):
+    nruter = "[ "
+    for card in hand:
+        nruter += tuple_to_str(card) + " "
+    nruter += "]"
+    return nruter
 
-def gen_combos(hand):
-    num_remaining = 7-len(hand)
-    dummy_deck = remaining_cards.copy()
-    all_combos = []
-    num_created = 0
-    # for table in tqdm(combinations(remaining_cards,num_remaining),desc="creating combos", leave=False):
-    for table in combinations(remaining_cards,num_remaining):
-        for card in table:
-            dummy_deck.remove(card)
-        for c in combinations(dummy_deck,2):
-            num_created += 1
-            if num_created % 10000 == 0:
-                print(f" creating combos: {num_created}", end="\r")
-            all_combos.append(hand+list(table)+list(c))
-        for card in table:
-            dummy_deck.append(card)
-    return all_combos
-
-def display_probs_mp_win_loss(hand):
-    assert len(hand) + len(remaining_cards) == 52
-    combos = gen_combos(hand) #[hand+list(c) for c in tqdm(combinations(remaining_cards, num_remaining), desc="creating combos", leave=False)]
-
-    cpus = mp.cpu_count()
-    chunk_size = len(combos)//cpus
-    processes = []
-    q = mp.SimpleQueue()
-    for i in tqdm(range(0,len(combos), chunk_size), desc="starting processes", leave=False):
-        p = mp.Process(target=calc_self_and_opp_buckets_and_win_counter_mp, args=(combos[i:i+chunk_size],q))
-        p.start()
-        processes.append(p)
-
-    self_buckets = np.zeros(10)
-    opp_buckets = np.zeros(10)
-    win_loss_tally = np.zeros(3)
-    for p in tqdm(processes, desc="waiting for results", leave=False):
-        p.join()
-    while not q.empty():
-        self_partial, opp_partial, win_partial = q.get()
-        self_buckets += self_partial
-        opp_buckets += opp_partial
-        win_loss_tally += win_partial
-    fancy_out(f"self buckets: {self_buckets}")
-    self_probs = self_buckets/np.sum(self_buckets)
-    opp_probs = opp_buckets/np.sum(opp_buckets)
-    win_probs = win_loss_tally/np.sum(win_loss_tally)
-
-    your_msg = "Your Hand Probabilities"
-    opp_msg = "Opponent Hand Probabilities"
-    terminal_len = os.get_terminal_size()[0]
-    bar="-"*terminal_len
-    fancy_out(f"{your_msg: <36}{opp_msg}")
-    fancy_out(f"{bar}")
-    for i in range(len(self_probs)-1,-1,-1):
-        fancy_out(f"{num_to_hand[i]:.<16}: {np.round(self_probs[i],7):<20}{num_to_hand[i]:.<16}: {np.round(opp_probs[i],7)}")
-    
-    win_msg = "Win probability:"
-    loss_msg = "Loss Probability:"
-    tie_msg = "Tie Probability:"
-    print()
-    fancy_out(f"{win_msg: <20}{np.round(win_probs[0],7)}")
-    fancy_out(f"{loss_msg: <20}{np.round(win_probs[1],7)}")
-    fancy_out(f"{tie_msg: <20}{np.round(win_probs[2],7)}")
-    print()
-
-def fancy_out(msg:str):
+def fancy_out(msg:str,end="\n"):
     sleep_time = .1/len(msg)
     for c in msg:
         print(c,end="",flush=True)
         time.sleep(sleep_time)
-    print()
+    print("",end=end)
 
 def main(args,unknown):
     hand = []
     os.system("clear")
-    strhand = []
     for next_card in [c for c in args.cards] + [c for c in unknown]:
         if next_card not in str_remaining:
-            raise ValueError(f'{next_card} is not a valid card. run with flag --help or -h to see valid card strings.')
+            print(f'skipping: {next_card} is not a valid card. run with flag --help or -h to see valid card strings.')
         else:
             str_remaining.remove(next_card)
-            strhand.append(next_card)
             card = str_to_tuple(next_card)
             remaining_cards.remove(card)
             hand.append(card)
     
 
-    while len(hand)<2:
-        fancy_out(f"your hand: {strhand}")
-        next_card = input("enter next card: ")
-        while next_card not in str_remaining:
-            next_card = input(f'{next_card} is not a valid card. valid cards:\n{str_remaining}\nenter next card: ')
-        str_remaining.remove(next_card)
-        strhand.append(next_card)
-        card = str_to_tuple(next_card)
-        remaining_cards.remove(card)
-        hand.append(card)
+    def add_to_hand():
+        next_cards = input("enter next cards: ")
+        any_added = False
+        for next_card in next_cards.split():
+            if next_card not in str_remaining:
+                print(f"{next_card} is not a valid card. skipping")
+            else:
+                any_added = True
+                str_remaining.remove(next_card)
+                card = str_to_tuple(next_card)
+                remaining_cards.remove(card)
+                hand.append(card)
+        return any_added
     
-    while len(hand) < 7:
-        os.system("clear")
-        fancy_out(f"your hand: {strhand}")
-        if len(hand) == 2:
-            display_probs_mp(hand)
-        elif len(hand) > 4:
-            display_probs_mp_win_loss(hand)
+    terminated = False
+    while not terminated:
+        try:
+            os.system("clear")
+            fancy_out(f"your hand: {hand_to_str(hand)}")
+            if len(hand) == 2:
+                display_probs_mp(hand)
+            elif len(hand) > 4:
+                display_probs_mp_win_loss(hand)
             
-        
-        next_card = input("enter next card: ")
-        while next_card not in str_remaining:
-            next_card = input(f'{next_card} is not a valid card. valid cards:\n{str_remaining}\nenter next card: ')
-        str_remaining.remove(next_card)
-        strhand.append(next_card)
-        card = str_to_tuple(next_card)
-        remaining_cards.remove(card)
-        hand.append(card)
-    
-    os.system("clear")
-    fancy_out(f"your hand: {strhand}")
-    best_hand = calc_best_hand(hand)
-    display_probs_mp_win_loss(hand)
-    fancy_out(f"\nyour best hand: {num_to_hand[best_hand[0]]}")
-    print(best_hand)
+            if len(hand) >= 7:
+                break
+                
+            
+            while not add_to_hand():
+                print(f"no cards added. valid cards:\n{str_remaining}")
+            
+        except KeyboardInterrupt as e:
+            try:
+                os.system("clear")
+                fancy_out("ctrl-c detected. press enter to undo card add")
+                fancy_out("enter 'a' to add cards without recalculation")
+                fancy_out("press ctrl-c again to terminate")
+                i = input()
+                if len(hand) > 0:
+                    remaining_cards.append(hand[-1])
+                    str_remaining.append(tuple_to_str(hand[-1]))
+                    hand = hand[:-1]
+                if i == 'a':
+                    fancy_out(f"your hand: {hand_to_str(hand)}")
+                    while not add_to_hand():
+                        print(f"no cards added. valid cards:\n{str_remaining}")
+            except KeyboardInterrupt as e2:
+                os.system("clear")
+                terminated = True
+
+            
+
+    if not terminated:
+        # os.system("clear")
+        # fancy_out(f"your hand: {hand_to_str(hand)}")
+        best_hand = calc_best_hand(hand)
+        # display_probs_mp_win_loss(hand)
+        fancy_out(f"\nyour best hand: {num_to_hand[best_hand[0]]}")
+        fancy_out(str(best_hand))
+    else:
+        fancy_out("process terminated")
 
         
 
