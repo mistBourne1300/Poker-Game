@@ -15,8 +15,8 @@ constexpr int PERCENT_DECIMALS = 5;
 
 void generate_combinations(int hand_size, vector<vector<Card>> &combinations, vector<Card> curr_hand, vector<Card> cards_to_exclude);
 void generate_combinations_rec(int hand_size, vector<vector<Card>> &combinations, vector<Card> curr_hand, vector<Card> cards_to_exclude);
-Hand find_best_hand(vector<Card> const hand);
-vector<Card> find_straight(const vector<Card> &hand);
+Hand find_best_hand(vector<Card> hand);
+vector<Card> find_straight(vector<Card> hand);
 void kind_sort(vector<Card> &hand);
 
 int main(const int argc, const char* argv[]) {
@@ -82,7 +82,7 @@ void generate_combinations_rec(int hand_size, vector<vector<Card>> &combinations
     }
 }
 
-Hand find_best_hand(vector<Card> const hand) {
+Hand find_best_hand(vector<Card> hand) {
     // check for a flush
     int suits[5] = {0,0,0,0,0}; // tally of how many of each suit there are
     for (Card card : hand) { suits[card.getSuit()]++; } // count each suit
@@ -127,10 +127,8 @@ Hand find_best_hand(vector<Card> const hand) {
             sorted_hand.at(4) = high_card; // huge abuse of notation, but works since sorted_hand is a dummy copy
             return {FOUR_OF_A_KIND, vector<Card>(sorted_hand.begin(), sorted_hand.begin() + 5)};
         }
-        else if (new_hand[0][0] == new_hand[2][0] && new_hand[3][0] == new_hand[4][0]) {
-            buckets[FULL_HOUSE]++;
-            best_hand[0][0] = FULL_HOUSE;
-            for (int i = 1; i < 6; i++) { best_hand[i][0] = new_hand[i - 1][0]; best_hand[i][1] = new_hand[i - 1][1]; }
+        else if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank() && sorted_hand.at(3).getRank() == sorted_hand.at(4).getRank()) {
+            return {FULL_HOUSE, vector<Card> };
         }
         else if (straight[0][0] != 0) {
             buckets[STRAIGHT]++;
@@ -192,7 +190,8 @@ Hand find_best_hand(vector<Card> const hand) {
     int num_cases = 0;
 }
 
-vector<Card> find_straight(const vector<Card> &hand) {
+vector<Card> find_straight(vector<Card> hand) {
+    sort(hand.begin(), hand.end(), [](const Card &a, const Card &b) { return a > b; });
     vector<Card> straight;
     for (int i = 0; i < hand.size() - 4; i++) {
         straight.push_back(hand.at(i));
