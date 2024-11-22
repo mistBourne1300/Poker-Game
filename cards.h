@@ -3,12 +3,33 @@
 
 // #include <iostream> // TODO: delete this line when done with testing
 #include <string>
+#include <sstream>
 #include <vector>
+#include <exception>
 
 using namespace std;
 
-enum Rank { TWO = 2, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE };
-enum Suit { DIAMONDS, CLUBS, HEARTS, SPADES };
+enum Rank { NULL_RANK = 0, TWO=2, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE, RANK_COUNT };
+enum Suit { NULL_SUIT = 0, DIAMONDS, CLUBS, HEARTS, SPADES, SUIT_COUNT };
+enum HandType { NULL_HAND = 0, HIGH_CARD, PAIR, TWO_PAIR, THREE_OF_A_KIND, STRAIGHT, FLUSH, FULL_HOUSE, FOUR_OF_A_KIND, STRAIGHT_FLUSH, ROYAL_FLUSH, HAND_COUNT };
+Rank& operator++(Rank &rank) {
+  rank = static_cast<Rank>((static_cast<int>(rank) + 1));
+  return rank;
+}
+Suit& operator++(Suit &suit) {
+  suit = static_cast<Suit>((static_cast<int>(suit) + 1));
+  return suit;
+}
+Rank operator++(Rank &rank, int) {
+  Rank r = rank;
+  ++rank;
+  return r;
+}
+Suit operator++(Suit &suit, int) {
+  Suit s = suit;
+  ++suit;
+  return s;
+}
 
 class Card {
   private:
@@ -16,7 +37,7 @@ class Card {
     Suit suit;
 
   public:
-    Card() : rank(ACE), suit(SPADES) {}
+    Card() : rank(NULL_RANK), suit(NULL_SUIT) {}
     Card(Rank rank, Suit suit) : rank(rank), suit(suit) {}
     Card(int rank, int suit) : rank(static_cast<Rank>(rank)), suit(static_cast<Suit>(suit)) {}
     Card(Rank rank, int suit) : rank(rank), suit(static_cast<Suit>(suit)) {}
@@ -50,6 +71,7 @@ class Card {
 
     const string toString() {
       stringstream ss;
+      ss << "[";
       switch (rank) {
         case ACE: ss << "a"; break;
         case KING: ss << "k"; break;
@@ -66,7 +88,7 @@ class Card {
         case TWO: ss << "2"; break;
         default:
           stringstream ee;
-          ee << "invalid card rank" << rank;
+          ee << "Invalid card rank: " << rank;
           throw ee.str();
       }
       switch (suit) {
@@ -76,9 +98,10 @@ class Card {
         case DIAMONDS: ss << "d"; break;
         default:
           stringstream ee;
-          ee << "invalid card suit" << suit;
+          ee << "Invalid card suit: " << suit;
           throw ee.str();
       }
+      ss << "]";
       return ss.str();
     }
 
@@ -94,6 +117,10 @@ class Card {
       return card1.rank == card2.rank && card1.suit == card2.suit;
     }
 
+   friend bool operator!=(const Card &card1, const Card &card2) {
+      return !(card1 == card2);
+    }
+
     friend bool operator<=(const Card &card1, const Card &card2) {
       return card1 < card2 || card1 == card2;
     }
@@ -101,6 +128,66 @@ class Card {
     friend bool operator>=(const Card &card1, const Card &card2) {
       return card2 < card1 || card1 == card2;
     }
+};
+
+class Hand {
+  private:
+    HandType type;
+    Card cards[5];
+
+  public:
+    Hand(HandType hand_type, vector<Card> inCards) : type(hand_type) {
+      if (inCards.size() < 5) {throw length_error("Can't initialize hand with fewer than 5 cards"); }
+      if (inCards.size() > 5) {throw length_error("Can't initialize hand with more than 5 cards"); }
+      for (int i = 0; i < 5; i++) {
+        cards[i] = inCards.at(i);
+      }
+    }
+    Hand(int hand_type, vector<Card> inCards) : type(static_cast<HandType>(hand_type)) {
+      if (inCards.size() < 5) {throw length_error("Can't initialize hand with fewer than 5 cards"); }
+      if (inCards.size() > 5) {throw length_error("Can't initialize hand with more than 5 cards"); }
+      for (int i = 0; i < 5; i++) {
+        cards[i] = inCards.at(i);
+      }
+    }
+
+
+    Card at(unsigned int index) const {
+      return cards[index];
+    }
+
+    friend bool operator<(const Hand &hand1, const Hand &hand2) {
+      if (hand1.type != hand2.type) { return hand1.type < hand2.type; }
+      for (int i = 0; i < 5; i++) {
+        if (hand1.at(i) != hand2.at(i)) { return hand1.at(i) < hand2.at(i); }
+      }
+      return false;
+    }
+
+    friend bool operator>(const Hand &hand1, const Hand &hand2) {
+      return hand2 < hand1;
+    }
+
+    friend bool operator==(const Hand &hand1, const Hand &hand2) {
+      if (hand1.type != hand2.type) { return false; }
+      for (int i = 0; i < 5; i++) {
+        if (hand1.at(i) != hand2.at(i)) { return false; }
+      }
+      return true;
+    }
+
+    friend bool operator!=(const Hand &hand1, const Hand &hand2) {
+      return !(hand1 == hand2);
+    }
+
+    friend bool operator<=(const Hand &hand1, const Hand &hand2) {
+      return hand1 < hand2 || hand1 == hand2;
+    }
+
+    friend bool operator>=(const Hand &hand1, const Hand &hand2) {
+      return hand2 < hand1 || hand1 == hand2;
+    }
+
 };
 
 // class Deck {
