@@ -116,6 +116,7 @@ Hand find_best_hand(vector<Card> hand) {
     else {
         vector<Card> straight = find_straight(hand);
         vector<Card> sorted_hand = hand;
+        vector<Card> best_hand;
         kind_sort(sorted_hand);
         if (hand.at(0).getRank() == hand.at(3).getRank()) {
             Card high_card = hand.at(4);
@@ -124,70 +125,57 @@ Hand find_best_hand(vector<Card> hand) {
                     high_card = card;
                 }
             }
-            sorted_hand.at(4) = high_card; // huge abuse of notation, but works since sorted_hand is a dummy copy
-            return {FOUR_OF_A_KIND, vector<Card>(sorted_hand.begin(), sorted_hand.begin() + 5)};
+            for (int i = 0; i < 4; ++i) { best_hand.push_back(sorted_hand.at(i)); }
+            best_hand.push_back(high_card);
+            return {FOUR_OF_A_KIND, best_hand};
         }
         else if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank() && sorted_hand.at(3).getRank() == sorted_hand.at(4).getRank()) {
-            return {FULL_HOUSE, vector<Card> };
+            for (int i = 0; i < 5; ++i) { best_hand.push_back(sorted_hand.at(i)); }
+            return {FULL_HOUSE, best_hand};
         }
-        else if (straight[0][0] != 0) {
-            buckets[STRAIGHT]++;
-            best_hand[0][0] = STRAIGHT;
-            for (int i = 1; i < 6; i++) { best_hand[i][0] = straight[i - 1][0]; best_hand[i][1] = straight[i - 1][1]; }
+        else if (straight.at(0).getRank() != 0) {
+            return {STRAIGHT, straight};
         }
-        else if (new_hand[0][0] == new_hand[2][0]) {
-            buckets[THREE_OF_A_KIND]++;
-            best_hand[0][0] = THREE_OF_A_KIND;
-            for (int i = 1; i < 4; i++) { best_hand[i][0] = new_hand[i - 1][0]; new_hand[i][1] = new_hand[i - 1][1]; }
-            int high_card = 4;
-            int sec_card;
-            for (int i = 5; i < 7; i++) { if (new_hand[i][0] > new_hand[high_card][0]) { high_card = i; } }
-            if (high_card = 4) { sec_card = 5; } else { sec_card = 4; }
-            for (int i = 5; i < 7; i++) { if (new_hand[i][0] > new_hand[sec_card][0] && i != high_card) { sec_card = i; } }
-            best_hand[4][0] = new_hand[high_card][0]; best_hand[4][0] = new_hand[high_card][1];
-            best_hand[5][0] = new_hand[sec_card][0]; best_hand[5][0] = new_hand[sec_card][1];
+        else if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank()) {
+            for (int i = 0; i < 5; ++i) { best_hand.push_back(sorted_hand.at(i)); }
+            /* Unnecessary since any pairs remaining would have triggered full house
+            Card high_card;
+            Card sec_card;
+            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > high_card) { high_card = sorted_hand.at(i); } }
+            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > sec_card && sorted_hand.at(i) != high_card) { sec_card = sorted_hand.at(i); } }
+            for (int i = 0; i < 3; ++i) { best_hand.push_back(sorted_hand.at(i)); }
+            best_hand.push_back(high_card);
+            best_hand.push_back(sec_card);
+            */
+            return {THREE_OF_A_KIND, best_hand};
         }
-        else if (new_hand [2][0] == new_hand[3][0]) {
-            buckets[TWO_PAIR]++;
-            best_hand[0][0] = TWO_PAIR;
-            for (int i = 1; i < 5; i++) { best_hand[i][0] = new_hand[i - 1][0]; new_hand[i][1] = new_hand[i - 1][1]; }
-            int high_card = 5;
-            for (int i = 6; i < 7; i++) { if (new_hand[i][0] > new_hand[high_card][0]) { high_card = i; } }
-            best_hand[5][0] = new_hand[high_card][0]; best_hand[5][0] = new_hand[high_card][1];
+        else if (sorted_hand.at(2).getRank() == sorted_hand.at(3).getRank()) {
+            for (int i = 0; i < 4; i++) { best_hand.push_back(sorted_hand.at(i)); }
+            Card high_card; // Necessary since could have 3 pairs with high card as the 7th
+            for (int i = 5; i < 7; i++) { if (sorted_hand.at(i) > high_card) { high_card = sorted_hand.at(i); } }
+            best_hand.push_back(high_card);
+            return {TWO_PAIR, best_hand};
         }
-        else if (new_hand[0][0] == new_hand[1][0]) {
-            buckets[PAIR]++;
-            best_hand[0][0] = PAIR;
-            for (int i = 1; i < 3; i++) { best_hand[i][0] = new_hand[i - 1][0]; new_hand[i][1] = new_hand[i - 1][1]; }
-            int high_card = 3;
-            int sec_card;
-            int trd_card;
-            for (int i = 4; i < 7; i++) { if (new_hand[i][0] > new_hand[high_card][0]) { high_card = i; } }
-            if (high_card == 3) { sec_card = 4; } else { sec_card = 3; }
-            for (int i = 3; i < 7; i++) { if (new_hand[i][0] > new_hand[sec_card][0] && i != high_card) { sec_card = i; } }
-            if (high_card > 3 && sec_card > 3) { trd_card = 4; }
-            else if (high_card < 6 && sec_card < 6) { trd_card = 3; }
-            else { trd_card = 4;}
-            for (int i = 3; i < 7; i++) { if (new_hand[i][0] > new_hand[trd_card][0] && i != high_card && i != sec_card) { trd_card = i; } }
-            best_hand[3][0] = new_hand[high_card][0]; best_hand[3][0] = new_hand[high_card][1];
-            best_hand[4][0] = new_hand[sec_card][0]; best_hand[4][0] = new_hand[sec_card][1];
-            best_hand[5][0] = new_hand[trd_card][0]; best_hand[5][0] = new_hand[trd_card][1];
+        else if (sorted_hand.at(0).getRank() == sorted_hand.at(1).getRank()) {
+            for (int i = 0; i < 5; i++) { best_hand.push_back(sorted_hand.at(i)); }
+            /* //should be unnecessary since only one pair means the rest should be descending singletons
+            Card high_card;
+            Card sec_card;
+            Card trd_card;
+            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > high_card) { high_card = sorted_hand.at(i); } }
+            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > sec_card && sorted_hand.at(i) != high_card) { sec_card = sorted_hand.at(i); } }
+            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > trd_card && sorted_hand.at(i) != high_card && sorted_hand.at(i) != sec_card) { trd_card = sorted_hand.at(i); } }
+            best_hand.push_back(high_card);
+            best_hand.push_back(sec_card);
+            best_hand.push_back(trd_card);
+            */
+            return {PAIR, best_hand};
         }
         else {
-            buckets[HIGH_CARD]++;
-            best_hand[0][0] = HIGH_CARD;
-            sort_descending(7, new_hand);
-            for (int i = 0; i < 5; i++) { best_hand[i + 1][0] = new_hand[i][0]; best_hand[i + 1][1] = new_hand[i][1]; }
+            for (int i = 0; i < 5; i++) { best_hand.push_back(sorted_hand.at(i)); }
+            return {HIGH_CARD, best_hand};
         }
     }
-    // Calculate win percentages against opponents
-    int opp_buckets[10] = {0,0,0,0,0,0,0,0,0,0};
-    int opp_hand[7][2] = {{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}};
-    for (int i = 0; i < 5; i++) { opp_hand[i][0] = hand[i + 2][0]; opp_hand[i][1] = hand[i + 2][1]; }
-    int my_hand[2][2] = {{hand[0][0],hand[0][1]},{hand[1][0],hand[1][1]}};
-    // combination(opp_buckets,7,opp_hand,2,my_hand);
-    int num_win_cases = 0;
-    int num_cases = 0;
 }
 
 vector<Card> find_straight(vector<Card> hand) {
