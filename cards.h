@@ -3,12 +3,31 @@
 
 // #include <iostream> // TODO: delete this line when done with testing
 #include <string>
+#include <sstream>
 #include <vector>
 
 using namespace std;
 
-enum Rank { TWO = 2, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE };
-enum Suit { DIAMONDS, CLUBS, HEARTS, SPADES };
+enum Rank { NULL_RANK = 0, TWO=2, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE, RANK_COUNT };
+enum Suit { NULL_SUIT = 0, DIAMONDS, CLUBS, HEARTS, SPADES, SUIT_COUNT };
+Rank& operator++(Rank &rank) {
+  rank = static_cast<Rank>((static_cast<int>(rank) + 1));
+  return rank;
+}
+Suit& operator++(Suit &suit) {
+  suit = static_cast<Suit>((static_cast<int>(suit) + 1));
+  return suit;
+}
+Rank operator++(Rank &rank, int) {
+  Rank r = rank;
+  ++rank;
+  return r;
+}
+Suit operator++(Suit &suit, int) {
+  Suit s = suit;
+  ++suit;
+  return s;
+}
 
 class Card {
   private:
@@ -16,7 +35,7 @@ class Card {
     Suit suit;
 
   public:
-    Card() : rank(ACE), suit(SPADES) {}
+    Card() : rank(NULL_RANK), suit(NULL_SUIT) {}
     Card(Rank rank, Suit suit) : rank(rank), suit(suit) {}
     Card(int rank, int suit) : rank(static_cast<Rank>(rank)), suit(static_cast<Suit>(suit)) {}
     Card(Rank rank, int suit) : rank(rank), suit(static_cast<Suit>(suit)) {}
@@ -50,6 +69,7 @@ class Card {
 
     const string toString() {
       stringstream ss;
+      ss << "[";
       switch (rank) {
         case ACE: ss << "a"; break;
         case KING: ss << "k"; break;
@@ -66,7 +86,7 @@ class Card {
         case TWO: ss << "2"; break;
         default:
           stringstream ee;
-          ee << "invalid card rank" << rank;
+          ee << "Invalid card rank: " << rank;
           throw ee.str();
       }
       switch (suit) {
@@ -76,9 +96,10 @@ class Card {
         case DIAMONDS: ss << "d"; break;
         default:
           stringstream ee;
-          ee << "invalid card suit" << suit;
+          ee << "Invalid card suit: " << suit;
           throw ee.str();
       }
+      ss << "]";
       return ss.str();
     }
 
