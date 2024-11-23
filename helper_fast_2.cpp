@@ -5,6 +5,8 @@
 #include <execution>
 #include <algorithm>
 #include <cmath>
+#include <thread>
+
 #include "Cards.h"
 // #include <bits/locale_conv.h>
 
@@ -28,7 +30,8 @@ int main(const int argc, const char* argv[]) {
 	for_each(execution::par, combinations.begin(), combinations.end(), [&buckets](vector<Card> &hand) {
         Hand myBestHand = find_best_hand(hand);
         buckets[myBestHand.getType() - 1]++;
-	    });
+	    cout << "Thread ID: " << this_thread::get_id() << endl;
+	});
     for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; }
     cout << endl;
     return 0;
@@ -195,7 +198,7 @@ vector<Card> find_straight(vector<Card> hand) {
         if (straight.size() == 5) { return straight; } // if the above code finds a whole straight, be done
         straight.clear();
     }
-    return vector<Card> {Card()};
+    return {Card()};
 }
 
 void kind_sort(vector<Card> &hand) {
@@ -207,8 +210,8 @@ void kind_sort(vector<Card> &hand) {
     for (int j = 0; j < num_ranks; j++) {
         Rank max_rank = ACE;
         for (int i = 13; i > 1; i--) { if (counts[i] > counts[max_rank]) { max_rank = static_cast<Rank>(i); } } // find most common card. A tie goes to the higher value
-        for (Card card1 : hand) {
-            for (Card card2 : hand) {
+        for (Card &card1 : hand) {
+            for (Card &card2 : hand) {
                 if ((card1.getRank() != max_rank && card2.getRank() == max_rank)
                     || (card1.getRank() == max_rank && card2.getRank() == max_rank && card1.getSuit() < card2.getSuit())) {
                     swap(card1, card2);
