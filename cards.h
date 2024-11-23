@@ -151,10 +151,8 @@ class Hand {
       }
     }
 
-
-    Card at(unsigned int index) const {
-      return cards[index];
-    }
+    Card at(unsigned int index) const { return cards[index]; }
+    HandType getType() const { return type; }
 
     friend bool operator<(const Hand &hand1, const Hand &hand2) {
       if (hand1.type != hand2.type) { return hand1.type < hand2.type; }

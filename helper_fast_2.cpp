@@ -25,9 +25,12 @@ int main(const int argc, const char* argv[]) {
     for (int i = 1; i < argc; i++) { hand.push_back(Card(argv[i])); }
     vector<vector<Card>> combinations;
 	generate_combinations(7, combinations, hand, vector<Card> {});
-	for_each(execution::par, combinations.begin(), combinations.end(), [](vector<Card> &hand) {
+	for_each(execution::par, combinations.begin(), combinations.end(), [&buckets](vector<Card> &hand) {
         Hand myBestHand = find_best_hand(hand);
-	});
+        buckets[myBestHand.getType() - 1]++;
+	    });
+    for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; }
+    cout << endl;
     return 0;
 }
 
@@ -84,10 +87,10 @@ void generate_combinations_rec(int hand_size, vector<vector<Card>> &combinations
 
 Hand find_best_hand(vector<Card> hand) {
     // check for a flush
-    int suits[5] = {0,0,0,0,0}; // tally of how many of each suit there are
+    int suits[5] = {0,0,0,0,0}; // tally of how many of each suit there are. 0th entry counts NULL_SUIT
     for (Card card : hand) { suits[card.getSuit()]++; } // count each suit
     int num_suited = 0; // number of cards in the suit with the most cards in it
-    for (int i = 0; i < 4; i++) { if (num_suited < suits[i]) { num_suited = suits[i]; } }
+    for (int i = 0; i < 5; i++) { if (num_suited < suits[i]) { num_suited = suits[i]; } }
 
     if (num_suited > 4) {
         // find which suit has the flush
@@ -116,8 +119,8 @@ Hand find_best_hand(vector<Card> hand) {
     else {
         vector<Card> straight = find_straight(hand);
         vector<Card> sorted_hand = hand;
-        vector<Card> best_hand;
         kind_sort(sorted_hand);
+        vector<Card> best_hand;
         if (hand.at(0).getRank() == hand.at(3).getRank()) {
             Card high_card = hand.at(4);
             for (Card card : vector<Card> {hand.begin() + 4, hand.end()}) {
@@ -200,7 +203,6 @@ void kind_sort(vector<Card> &hand) {
     for (Card card : hand) { counts[card.getRank()]++; }
     int num_ranks = 0;
     int num_sorted = 0;
-    Card card;
     for (int i = 2; i < 15; i++) { num_ranks += (counts[i] != 0); }
     for (int j = 0; j < num_ranks; j++) {
         Rank max_rank = ACE;
