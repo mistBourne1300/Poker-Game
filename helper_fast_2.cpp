@@ -12,6 +12,9 @@
 
 using namespace std;
 
+// Quality of life constants
+const string HANDS[10] = {"High Card", "Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"};
+
 // Tweakable Constants
 constexpr int PERCENT_DECIMALS = 5;
 
@@ -23,20 +26,56 @@ void kind_sort(vector<Card> &hand);
 
 int main(const int argc, const char* argv[]) {
     int buckets[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int winTally[2] = {0,0};
     vector<Card> cardsInPlay;
-    int num_players = stoi(argv[1]);
+    const int num_players = stoi(argv[1]);
     for (int i = 2; i < argc; i++) { cardsInPlay.push_back(Card(argv[i])); }
     vector<vector<Card>> combinations;
-	generate_combinations(5 + 2*num_players, combinations, cardsInPlay, vector<Card> {});
-	for_each(execution::par, combinations.begin(), combinations.end(), [&buckets](vector<Card> &table) {
-        vector<Card> myCards;
-	    for (int i = 0; i < 7; i++) {}
+	generate_combinations(7, combinations, cardsInPlay,  {});
+    unsigned long long iteration = 1;
+    unsigned long long total_iterations = combinations.size();
+    cout << "0%\r";
+	for_each(execution::par, combinations.begin(), combinations.end(), [&num_players,&buckets,&winTally,&iteration, &total_iterations](vector<Card> &combo) {
+	    // cout << "Thread ID: " << this_thread::get_id() << endl;
+	    vector<Card> table;
+	    for (int i = 2; i < 7; ++i) { table.push_back(combo.at(i)); }
+	    vector<Card> myHand;
+	    for (int i = 0; i < 2; ++i) { myHand.push_back(combo.at(i)); }
+	    vector<Card> myCards;
+	    for (int i = 0; i < 7; ++i) { myCards.push_back(combo.at(i)); }
 	    Hand myBestHand = find_best_hand(myCards);
         buckets[myBestHand.getType() - 1]++;
-	    cout << "Thread ID: " << this_thread::get_id() << endl;
+	    if (trunc(iteration * 100/total_iterations) > trunc((iteration - 1) * 100/total_iterations)) {
+	        cout << trunc(iteration * 100/total_iterations) << "%\r";
+	    }
+	    iteration++;
+
+	    // Do opponent calculations
+	    int num_players_temp = min(num_players, 2); // temporarily cap number of opponents to 1 until I get that case working
+	    for (int playerNum = 1; playerNum < num_players_temp; ++playerNum) {
+	        vector<vector<Card>> oppCombos;
+	        generate_combinations(7, oppCombos, table, myHand);
+	        for (vector<Card> oppCombo : oppCombos) {
+	            Hand oppBestHand = find_best_hand(oppCombo);
+	            if (oppBestHand < myBestHand) { ++winTally[0]; }
+	            ++winTally[1];
+	        }
+	    }
 	});
     for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; }
     cout << endl;
+    cout << endl;
+    int total_hands = 0;
+    for (int i = 0; i < 10; i++) { total_hands += buckets[i]; }
+    for (int i = 9; i > -1; i--) {
+        cout << HANDS[i] << ":";
+        for (int j = HANDS[i].length(); j < 16; j++) { cout << " "; } // align percentages. 16 comes from the fact that "Three of a Kind" has 15 characters
+        cout << trunc(buckets[i] * pow(10, PERCENT_DECIMALS + 2)/total_hands)/pow(10, PERCENT_DECIMALS) << "%" << endl;
+    }
+    if (winTally[1] > 0) {
+        cout << "------------" << endl;
+        cout << "Win chance:      " << trunc(winTally[0] * pow(10, PERCENT_DECIMALS + 2)/winTally[1])/pow(10, PERCENT_DECIMALS) << "%" << endl;
+    }
     return 0;
 }
 
@@ -127,7 +166,7 @@ Hand find_best_hand(vector<Card> hand) {
         vector<Card> sorted_hand = hand;
         kind_sort(sorted_hand);
         vector<Card> best_hand;
-        if (hand.at(0).getRank() == hand.at(3).getRank()) {
+        if (sorted_hand.at(0).getRank() == sorted_hand.at(3).getRank()) {
             Card high_card = hand.at(4);
             for (Card card : vector<Card> {hand.begin() + 4, hand.end()}) {
                 if (card > high_card) {
