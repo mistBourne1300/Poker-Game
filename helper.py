@@ -358,7 +358,7 @@ def main(args,unknown):
     terminated = False
     while not terminated:
         try:
-            os.system("clear")return
+            os.system("clear")
             fancy_out(f"your hand: {hand_to_str(hand)}")
             if len(hand) == 2:
                 display_probs_mp(hand)
