@@ -286,9 +286,8 @@ def calc_best_hand(hand):
         if count_vals[0,0] == 2:
             [maximum,submax,subsub] = nlargest(3,count_vals[1:,1])
             return 1,count_vals[0,1],maximum,submax,subsub,0 # pair
-        print("count_vals: ", count_vals)
         high_cards = nlargest(5,count_vals[:,1])
-        return 0,high_cards
+        return 0,*high_cards
     
 def contains_straight(rcount):
     for high in range(len(rcount)-1,5,-1):
@@ -359,7 +358,7 @@ def main(args,unknown):
     terminated = False
     while not terminated:
         try:
-            os.system("clear")
+            os.system("clear")return
             fancy_out(f"your hand: {hand_to_str(hand)}")
             if len(hand) == 2:
                 display_probs_mp(hand)
@@ -400,7 +399,7 @@ def main(args,unknown):
         best_hand = calc_best_hand(hand)
         # display_probs_mp_win_loss(hand)
         fancy_out(f"\nyour best hand: {num_to_hand[best_hand[0]]}")
-        fancy_out(str(best_hand))
+        fancy_out(str(np.array(best_hand,dtype=int)))
     else:
         fancy_out("process terminated")
 
