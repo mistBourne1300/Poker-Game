@@ -23,12 +23,15 @@ void kind_sort(vector<Card> &hand);
 
 int main(const int argc, const char* argv[]) {
     int buckets[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    vector<Card> hand;
-    for (int i = 1; i < argc; i++) { hand.push_back(Card(argv[i])); }
+    vector<Card> cardsInPlay;
+    int num_players = stoi(argv[1]);
+    for (int i = 2; i < argc; i++) { cardsInPlay.push_back(Card(argv[i])); }
     vector<vector<Card>> combinations;
-	generate_combinations(7, combinations, hand, vector<Card> {});
-	for_each(execution::par, combinations.begin(), combinations.end(), [&buckets](vector<Card> &hand) {
-        Hand myBestHand = find_best_hand(hand);
+	generate_combinations(5 + 2*num_players, combinations, cardsInPlay, vector<Card> {});
+	for_each(execution::par, combinations.begin(), combinations.end(), [&buckets](vector<Card> &table) {
+        vector<Card> myCards;
+	    for (int i = 0; i < 7; i++) {}
+	    Hand myBestHand = find_best_hand(myCards);
         buckets[myBestHand.getType() - 1]++;
 	    cout << "Thread ID: " << this_thread::get_id() << endl;
 	});

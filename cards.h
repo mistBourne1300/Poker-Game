@@ -158,7 +158,7 @@ class Hand {
     friend bool operator<(const Hand &hand1, const Hand &hand2) {
       if (hand1.type != hand2.type) { return hand1.type < hand2.type; }
       for (int i = 0; i < 5; i++) {
-        if (hand1.at(i) != hand2.at(i)) { return hand1.at(i) < hand2.at(i); }
+        if (hand1.at(i).getRank() != hand2.at(i).getRank()) { return hand1.at(i).getRank() < hand2.at(i).getRank(); }
       }
       return false;
     }
@@ -170,7 +170,7 @@ class Hand {
     friend bool operator==(const Hand &hand1, const Hand &hand2) {
       if (hand1.type != hand2.type) { return false; }
       for (int i = 0; i < 5; i++) {
-        if (hand1.at(i) != hand2.at(i)) { return false; }
+        if (hand1.at(i).getRank() != hand2.at(i).getRank()) { return false; }
       }
       return true;
     }
