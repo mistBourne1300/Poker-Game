@@ -13,27 +13,26 @@ using namespace std;
 enum Rank { NULL_RANK = 0, TWO=2, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE, RANK_COUNT };
 enum Suit { NULL_SUIT = 0, DIAMONDS, CLUBS, HEARTS, SPADES, SUIT_COUNT };
 enum HandType { NULL_HAND = 0, HIGH_CARD, PAIR, TWO_PAIR, THREE_OF_A_KIND, STRAIGHT, FLUSH, FULL_HOUSE, FOUR_OF_A_KIND, STRAIGHT_FLUSH, ROYAL_FLUSH, HAND_COUNT };
-Rank& operator++(Rank &rank) {
+inline Rank& operator++(Rank &rank) {
   rank = static_cast<Rank>((static_cast<int>(rank) + 1));
   return rank;
 }
-Suit& operator++(Suit &suit) {
-  suit = static_cast<Suit>((static_cast<int>(suit) + 1));
-  return suit;
-}
-Rank operator++(Rank &rank, int) {
+inline Rank operator++(Rank &rank, int) {
   Rank r = rank;
   ++rank;
   return r;
 }
-Suit operator++(Suit &suit, int) {
+inline Suit& operator++(Suit &suit) {
+  suit = static_cast<Suit>((static_cast<int>(suit) + 1));
+  return suit;
+}
+inline Suit operator++(Suit &suit, int) {
   Suit s = suit;
   ++suit;
   return s;
 }
 
 class Card {
-  private:
     Rank rank;
     Suit suit;
 
@@ -43,7 +42,7 @@ class Card {
     Card(int rank, int suit) : rank(static_cast<Rank>(rank)), suit(static_cast<Suit>(suit)) {}
     Card(Rank rank, int suit) : rank(rank), suit(static_cast<Suit>(suit)) {}
     Card(int rank, Suit suit) : rank(static_cast<Rank>(rank)), suit(suit) {}
-    Card(string cardName) {
+    explicit Card(string cardName) {
       switch (cardName[cardName.size()-1]) {
         case 'd': suit = DIAMONDS; break;
         case 'c': suit = CLUBS; break;
@@ -60,17 +59,13 @@ class Card {
       else {} // FIXME: add error handling
     }
 
-    const Rank getRank() const { return rank; }
+    Rank getRank() const { return rank; }
 
-    const Suit getSuit() const { return suit; }
+    Suit getSuit() const { return suit; }
 
-    Card& operator=(const Card &other) {
-      rank = other.rank;
-      suit = other.suit;
-      return *this;
-    }
+    Card& operator=(const Card &other) = default;
 
-    const string toString() {
+    string toString() const {
       stringstream ss;
       ss << "[";
       switch (rank) {
@@ -132,7 +127,6 @@ class Card {
 };
 
 class Hand {
-  private:
     HandType type;
     Card cards[5];
 
@@ -190,14 +184,13 @@ class Hand {
 };
 
 class Deck {
-  private:
     vector<Card*> cards;
     int next_deal = 0;
 
   public:
     Deck() {
-      for (int suit = 0; suit < 4; suit++) {
-        for (int rank = 2; rank < 14; rank++) {
+      for (Suit suit = DIAMONDS; suit < SUIT_COUNT; ++suit) {
+        for (Rank rank = TWO; rank < RANK_COUNT; ++rank) {
           cards.push_back(new Card(rank, suit));
         }
       }
