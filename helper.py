@@ -2,11 +2,8 @@ import argparse
 import os
 import time
 import numpy as np
-from scipy.special import comb
-from scipy.stats import binom
-from itertools import combinations, product
+from itertools import combinations
 from tqdm.auto import tqdm
-import sys
 import multiprocessing as mp
 from heapq import nlargest
 
