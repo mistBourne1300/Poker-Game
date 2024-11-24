@@ -41,7 +41,7 @@ def display_probs_mp(hand):
         p.start()
         processes.append(p)
     
-    buckets = np.zeros(10)
+    buckets = np.zeros(10,dtype=int)
     for p in processes:
         p.join()
     while not q.empty():
@@ -50,6 +50,7 @@ def display_probs_mp(hand):
     
     os.system("clear")
     print(f"your hand: {hand_to_str(hand)}")
+    # print(f"buckets: {buckets}")
     probs = buckets/np.sum(buckets)
     your_msg = "Your Hand Probabilities"
     terminal_len = os.get_terminal_size()[0]
@@ -63,7 +64,7 @@ def calc_buckets_mp(hand,combos,q:mp.SimpleQueue,offset:int, lock):
     """
         here, we assume combos is a list of lists, not a list of tuples
     """
-    buckets = np.zeros(10)
+    buckets = np.zeros(10,dtype=int)
     lock.acquire()
     pbar = tqdm(total=len(combos),desc=f"chunk {offset}", position=offset,leave=False)
     lock.release()
@@ -131,6 +132,7 @@ def display_probs_mp_win_loss(hand):
 
     os.system("clear")
     print(f"your hand: {hand_to_str(hand)}")
+    # print(f"buckets: {self_buckets}")
     your_msg = "Your Hand Probabilities"
     opp_msg = "Opponent Hand Probabilities"
     terminal_len = os.get_terminal_size()[0]
@@ -284,6 +286,7 @@ def calc_best_hand(hand):
         if count_vals[0,0] == 2:
             [maximum,submax,subsub] = nlargest(3,count_vals[1:,1])
             return 1,count_vals[0,1],maximum,submax,subsub,0 # pair
+        print("count_vals: ", count_vals)
         high_cards = nlargest(5,count_vals[:,1])
         return 0,high_cards
     
@@ -301,7 +304,7 @@ def contains_straight(rcount):
     return 0
 
 def highest_kinds(rcount):
-    argmaxxes = np.argsort(rcount)[::-1]
+    argmaxxes = np.argsort(rcount,kind='stable')[::-1]
     return np.array([(rcount[argmaxxes[i]], argmaxxes[i]) for i in range(5)])# if rcount[argmaxxes[i]] > 0])
 
 
