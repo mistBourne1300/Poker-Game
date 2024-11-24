@@ -216,16 +216,11 @@ class Deck {
 
     void shuffle() {
       next_deal = 0;
-      Card temp;
-      int toIndex;
       random_device rd;
       mt19937 gen(rd());
       for (int i = 0; i < 51; i++) {
         uniform_int_distribution<> dis(i, 51);
-        toIndex = dis(gen);
-        temp = *(cards[i]);
-        *(cards[i]) = *(cards[toIndex]);
-        *(cards[toIndex]) = temp;
+        swap(cards[i], cards[dis(gen)]);
       }
     }
 };
