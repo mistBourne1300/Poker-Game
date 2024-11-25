@@ -112,6 +112,7 @@ void generate_combinations_rec(int hand_size, vector<vector<Card>> &combinations
 }
 
 Hand find_best_hand(vector<Card> hand) {
+    if (hand.size() != 7) {throw "Best hand is only defined for 7 card hands";}
     // check for a flush
     int suits[5] = {0,0,0,0,0}; // tally of how many of each suit there are. 0th entry counts NULL_SUIT
     for (Card card : hand) { suits[card.getSuit()]++; } // count each suit
@@ -129,13 +130,13 @@ Hand find_best_hand(vector<Card> hand) {
                 cards_in_suit.push_back(card);
             }
         }
-        sort(cards_in_suit.begin(), cards_in_suit.end(), [](const Card &a, const Card &b) { return a > b; });
         // check if there is a straight
+        sort(cards_in_suit.begin(), cards_in_suit.end(), [](const Card &a, const Card &b) { return a > b; }); // FLUSH does need this sorted regardless of straight
         vector<Card> straight = find_straight(cards_in_suit);
         // process the data from straight
         switch (straight.at(0).getRank()) {
             case NULL_RANK:
-                return {FLUSH, vector<Card>(cards_in_suit.begin(), cards_in_suit.begin() + 5)};
+                return {FLUSH, {cards_in_suit.begin(), cards_in_suit.begin() + 5}};
             case ACE:
                 return {ROYAL_FLUSH, straight};
             default:
@@ -143,72 +144,45 @@ Hand find_best_hand(vector<Card> hand) {
         }
     }
     else {
-        vector<Card> straight = find_straight(hand);
         vector<Card> sorted_hand = hand;
         kind_sort(sorted_hand);
-        vector<Card> best_hand;
+
+        // Four of a Kind
         if (sorted_hand.at(0).getRank() == sorted_hand.at(3).getRank()) {
-            Card high_card = hand.at(4);
-            for (Card card : vector<Card> {hand.begin() + 4, hand.end()}) {
-                if (card > high_card) {
-                    high_card = card;
-                }
-            }
-            for (int i = 0; i < 4; ++i) { best_hand.push_back(sorted_hand.at(i)); }
-            best_hand.push_back(high_card);
+            vector<Card> best_hand(sorted_hand.begin(), sorted_hand.begin() + 4);
+            best_hand.push_back(max(sorted_hand.at(4), sorted_hand.at(6))); // It's possible that the two cards after the four of a kind are a pair of lower rank than the highest rank remaining
             return {FOUR_OF_A_KIND, best_hand};
         }
-        else if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank() && sorted_hand.at(3).getRank() == sorted_hand.at(4).getRank()) {
-            for (int i = 0; i < 5; ++i) { best_hand.push_back(sorted_hand.at(i)); }
-            return {FULL_HOUSE, best_hand};
-        }
-        else if (straight.at(0).getRank() != 0) {
-            return {STRAIGHT, straight};
-        }
-        else if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank()) {
-            for (int i = 0; i < 5; ++i) { best_hand.push_back(sorted_hand.at(i)); }
-            /* Unnecessary since any pairs remaining would have triggered full house
-            Card high_card;
-            Card sec_card;
-            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > high_card) { high_card = sorted_hand.at(i); } }
-            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > sec_card && sorted_hand.at(i) != high_card) { sec_card = sorted_hand.at(i); } }
-            for (int i = 0; i < 3; ++i) { best_hand.push_back(sorted_hand.at(i)); }
-            best_hand.push_back(high_card);
-            best_hand.push_back(sec_card);
-            */
-            return {THREE_OF_A_KIND, best_hand};
-        }
-        else if (sorted_hand.at(2).getRank() == sorted_hand.at(3).getRank()) {
-            for (int i = 0; i < 4; i++) { best_hand.push_back(sorted_hand.at(i)); }
-            Card high_card; // Necessary since could have 3 pairs with high card as the 7th
-            for (int i = 5; i < 7; i++) { if (sorted_hand.at(i) > high_card) { high_card = sorted_hand.at(i); } }
-            best_hand.push_back(high_card);
+
+        // Full House
+        if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank() && sorted_hand.at(3).getRank() == sorted_hand.at(4).getRank()) { return {FULL_HOUSE, {sorted_hand.begin(), sorted_hand.begin() + 5}}; }
+
+        // Straight
+        sort(hand.begin(), hand.end(), [](const Card &a, const Card &b) { return a > b; });
+        vector<Card> straight = find_straight(hand);
+        if (straight.at(0).getRank() != 0) { return {STRAIGHT, straight}; }
+
+        // Three of a Kind
+        if (sorted_hand.at(0).getRank() == sorted_hand.at(2).getRank()) { return {THREE_OF_A_KIND, {sorted_hand.begin(), sorted_hand.begin() + 5}}; }
+
+        // Two Pair
+        if (sorted_hand.at(2).getRank() == sorted_hand.at(3).getRank()) {
+            vector<Card> best_hand(sorted_hand.begin(), sorted_hand.begin() + 4);
+            best_hand.push_back(max(sorted_hand.at(4), sorted_hand.at(6))); // It's possible that the two cards after the two pair are a pair of lower rank than the highest rank remaining
             return {TWO_PAIR, best_hand};
         }
-        else if (sorted_hand.at(0).getRank() == sorted_hand.at(1).getRank()) {
-            for (int i = 0; i < 5; i++) { best_hand.push_back(sorted_hand.at(i)); }
-            /* //should be unnecessary since only one pair means the rest should be descending singletons
-            Card high_card;
-            Card sec_card;
-            Card trd_card;
-            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > high_card) { high_card = sorted_hand.at(i); } }
-            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > sec_card && sorted_hand.at(i) != high_card) { sec_card = sorted_hand.at(i); } }
-            for (int i = 3; i < 7; i++) { if (sorted_hand.at(i) > trd_card && sorted_hand.at(i) != high_card && sorted_hand.at(i) != sec_card) { trd_card = sorted_hand.at(i); } }
-            best_hand.push_back(high_card);
-            best_hand.push_back(sec_card);
-            best_hand.push_back(trd_card);
-            */
-            return {PAIR, best_hand};
-        }
-        else {
-            for (int i = 0; i < 5; i++) { best_hand.push_back(sorted_hand.at(i)); }
-            return {HIGH_CARD, best_hand};
-        }
+
+        // Pair
+        if (sorted_hand.at(0).getRank() == sorted_hand.at(1).getRank()) { return {PAIR, {sorted_hand.begin(), sorted_hand.begin() + 5}}; }
+
+        // High Card
+        return {HIGH_CARD, {sorted_hand.begin(), sorted_hand.begin() + 5}};
     }
 }
 
 vector<Card> find_straight(vector<Card> hand) {
-    sort(hand.begin(), hand.end(), [](const Card &a, const Card &b) { return a > b; });
+    // hand should be sorted before being passed to streamline this process
+    // sort(hand.begin(), hand.end(), [](const Card &a, const Card &b) { return a > b; });
     vector<Card> straight;
     for (int i = 0; i < hand.size() - 4; i++) {
         straight.push_back(hand.at(i));
