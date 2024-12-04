@@ -59,6 +59,7 @@ def display_probs_mp(hand):
     fancy_out(f"{bar}")
     for i in range(len(probs)-1,-1,-1):
         fancy_out(f"{num_to_hand[i]:.<16}: {np.round(probs[i],7)}")
+    print()
 
 def calc_buckets_mp(hand,combos,q:mp.SimpleQueue,offset:int, lock):
     """
@@ -281,7 +282,7 @@ def calc_best_hand(hand):
         high = contains_straight(rcount)
         if high > 0: return 4,high,0,0,0,0 # straight
         if count_vals[1,0] == 2:
-            maximum = nlargest(1,count_vals[2:,1])
+            [maximum] = nlargest(1,count_vals[2:,1])
             return 2,count_vals[0,1],count_vals[1,1],maximum,0,0 # two pair
         if count_vals[0,0] == 2:
             [maximum,submax,subsub] = nlargest(3,count_vals[1:,1])
