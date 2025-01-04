@@ -21,7 +21,7 @@ str_remaining = [r+s for r in strranks for s in strsuits]
 strranks = ['0','0']+strranks
 num_to_hand = ["high card","pair","two pair", "three kind","straight","flush","full house","four kind","straight flush","royal flush"]
 prog_desc = "This is a probability calculator for poker hands. \
-    This (eventually) will calculate the probability of various poker hands at each stage of a Texas Hold 'Em hand."
+    This will calculate the probability of various poker hands at each stage of a Texas Hold 'Em hand."
 helpstring = f"the valid card arguments are {str_remaining}"
 # changes how often progress bars are updated. small numbers are cool-looking, 
 # but results in more print locks, (and obviously more prints) that slow down computation
@@ -82,7 +82,6 @@ def calc_buckets_mp(hand,combos,q:mp.SimpleQueue,offset:int, lock):
         buckets[calc_best_hand(revealed)[0]] += 1
     pbar.close()
     q.put(buckets)
-
 
 def gen_self_combos(hand):
     num_remaining = 7-len(hand)
@@ -237,7 +236,6 @@ def final_calc(hand,combos,q:mp.SimpleQueue):
     # pbar.close()
     q.put((self_buckets, opp_buckets, win_loss_tally))
 
-
 def calc_best_hand(hand):
     scount = np.zeros(4)
     for c in hand:
@@ -272,7 +270,7 @@ def calc_best_hand(hand):
         #     raise ValueError(f"count returned higher than 4: {count_vals[0,0]}")
         if count_vals[0,0] == 4:
             if len(count_vals) > 1:
-                [maximum] = nlargest(1,count_vals[1:,1])
+                maximum = max(count_vals[1:,1])
                 return 7,count_vals[0,1],maximum,0,0,0 # four kind
             else: return 7,count_vals[0,1],0,0,0,0 # incomplete four kind
         if count_vals[0,0] > 2:
@@ -285,7 +283,7 @@ def calc_best_hand(hand):
                 return 3,count_vals[0][1],maximum,submax,0,0 # three kind
             elif len(count_vals) == 2:
                 print("here")
-                [maximum] = nlargest(1,count_vals[1:,1])
+                maximum = max(count_vals[1:,1])
                 print(maximum)
                 return 3,count_vals[0,1],maximum,0,0,0 # incomplete three kind
             else:
@@ -295,7 +293,7 @@ def calc_best_hand(hand):
         if len(count_vals) > 1:
             if count_vals[1,0] == 2:
                 if len(count_vals) > 2:
-                    [maximum] = nlargest(1,count_vals[2:,1])
+                    maximum = max(count_vals[2:,1])
                     return 2,count_vals[0,1],count_vals[1,1],maximum,0,0 # two pair
                 else:
                     return 2,count_vals[0,1],count_vals[1,1],0,0,0 # incomplete two pair
@@ -307,7 +305,7 @@ def calc_best_hand(hand):
                 [maximum,submax] = nlargest(2,count_vals[1:,1])
                 return 1,count_vals[0,1],maximum,submax,0,0 # incomplete pair
             elif len(count_vals) > 1:
-                [maximum] = nlargest(1,count_vals[1:,1])
+                maximum = max(count_vals[1:,1])
                 return 1,count_vals[0,1],maximum,0,0,0 # incomplete pair
             else:
                 return 1,count_vals[0,1],0,0,0,0
@@ -525,6 +523,8 @@ def main(args,unknown):
         next_cards = input("enter next cards: ")
         any_added = False
         for next_card in next_cards.split():
+            if len(hand) >= 7:
+                break
             if len(next_card) == 2 and next_card[0] == "1":
                 next_card = next_card[0] + "0" + next_card[1]
             if next_card not in str_remaining:
