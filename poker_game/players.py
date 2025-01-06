@@ -34,23 +34,20 @@ class player:
         return hash(hashable)
 
     @abstractmethod
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = call_amount
         if bet_amount > self.money:
             bet_amount = self.money
-            self.money = 0
-        else:
-            self.money -= bet_amount
         return bet_amount
     
-    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = 0
         try:
-            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn)
+            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names)
         except Exception as e:
             import traceback
             print(f"player {self.name} threw an error ({e})! This causes a fold.")
@@ -100,7 +97,7 @@ class player:
     
     def reveal_hand(self, auth):
         if self.hash_auth(auth) != self.auth:
-            return None
+            return []
         return self.hand
     
 
@@ -112,45 +109,56 @@ class human(player):
         return human(name, auth)
 
     def __get_input(self, call_amount:int):
-        bet_amount = np.inf
+        bet_amount = -1
         def valid_choice():
-            if bet_amount >= call_amount or bet_amount == self.money or bet_amount == 0:
+            if bet_amount >= call_amount or (bet_amount == self.money and bet_amount < call_amount) or bet_amount == 0:
                 return True
             return False
         def error():
-            fancy_out(f"Bet amount is not a valid amount. You have {self.money}.")
-            fancy_out(f"To call requires {call_amount}.")
+            say(f"Bet amount is not a valid amount. You have {self.money}.")
+            say(f"To call requires {call_amount}.")
         while True:
             try:
-                bet_amount = int(input(f"{self.name}, enter bet amount ({call_amount} to call): "))
+                say((f"{self.name}, ({call_amount} to call): "))
+                bet_amount = int(input())
             except:
-                bet_amount = np.inf
+                bet_amount = -1
             if valid_choice():
                 break
             else:
                 error()
         return bet_amount
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
-        fancy_out(f"You have {self.money}.")
-        fancy_out(f"to call requires {call_amount}.")
+        print(f"{self.name} has {self.money} moneys.")
+        print(f"to call requires {call_amount}.")
         bet_amount = self.__get_input(call_amount)
         return bet_amount
+    
+    def reveal_hand(self, auth):
+        if self.hash_auth(auth) != self.auth:
+            return []
+        hand = []
+        say(f"enter {self.name}'s cards: ")
+        while len(hand) < 2:
+            add_to_list(hand)
+        return hand
 
 class random(player):
     @staticmethod
     def constructor(name, auth):
         return random(name, auth)
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_perc = .5
-        raise_perc = .1
+        raise_perc = .25
 
         decision = np.random.random()
+        print(f"random decision: {decision}")
         amount = 0
         if decision < call_perc:
             amount = min(call_amount, self.money)
@@ -163,7 +171,7 @@ class raiser(player):
     def constructor(name, auth):
         return raiser(name,auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_multiplier = 1.1

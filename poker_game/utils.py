@@ -8,8 +8,12 @@ suits = [s for s in range(4)]
 strranks = ['2','3','4','5','6','7','8','9','10','j','q','k','a']
 strsuits = ['s','h','c','d']
 num_to_hand = ["high card","pair","two pair", "three kind","straight","flush","full house","four kind","straight flush","royal flush"]
-deck = [(r,s) for r in ranks for s in suits]
-strdeck = [r+s for r in strranks for s in strsuits]
+remaining_cards = [(r,s) for r in ranks for s in suits]
+str_remaining = [r+s for r in strranks for s in strsuits]
+full_str_deck = [r+s for r in strranks for s in strsuits]
+full_tuple_deck = [(r,s) for r in ranks for s in suits]
+strranks = ["0","0"] + strranks
+hand = []
 
 def create_deck():
     ranks = [r for r in range(14,1,-1)]
@@ -303,7 +307,7 @@ def add_to_hand():
                 hand.append(card)
         return any_added
 
-def add_to_list(lizt, str_remaining, remaining_cards, max_size=52):
+def add_to_list(lizt, str_remaining=full_str_deck, remaining_cards=full_tuple_deck, max_size=52):
     next_cards = input("enter next cards: ")
     any_added = False
     for next_card in next_cards.split():
@@ -318,9 +322,21 @@ def add_to_list(lizt, str_remaining, remaining_cards, max_size=52):
             any_added = True
             str_remaining.remove(next_card)
             card = str_to_tuple(next_card)
-            remaining_cards.remove(card)
+            try:
+                remaining_cards.remove(card)
+            except Exception as e:
+                print(next_card)
+                print(card)
+                print(remaining_cards)
+                raise e
             lizt.append(card)
     return any_added
 
 def say(msg):
-    os.system(f"say {msg}")
+    print(msg)
+    os.system(f'say "{msg}"')
+
+def confirm(statement):
+    print("confirm " + statement)
+    os.system(f'say "confirm {statement}"')
+    temp = input("press enter:")
