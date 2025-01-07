@@ -5,6 +5,7 @@ import os
 import multiprocessing as mp
 from tqdm import tqdm
 from itertools import combinations
+from my_queue import MyQueue
 MININTERVAL = 0.5
 
 ranks = [r for r in range(14,1,-1)]
@@ -392,25 +393,45 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
         deck.remove(c)
     cpus = mp.cpu_count()
     processes = []
+    win_loss_tally = np.zeros(3)
+    q = MyQueue()
     if len(tabled) < 5:
         num_tabled_remaining = 5-len(tabled)
         future_table = [list(c) for c in tqdm(combinations(deck, num_tabled_remaining), desc="creating combos", leave=False)]
         chunk_size = len(future_table)//cpus
-        q = mp.SimpleQueue()
         lock = mp.Lock()
         print(f" starting {cpus} processes...")
         for offset,i in enumerate(range(0,len(future_table), chunk_size)):
-            p = mp.Process()
+            p = mp.Process(target=mp_self_hand_calc, args=(hand, tabled, future_table[i:i+chunk_size],deck,num_opps,q,offset,lock))
             p.start()
             processes.append(p)
-        else:
-            pass
-    pass
+    else:
+        pass
+    
+    win_loss_tally = np.zeros(3)
+    def processes_going(processes=processes):
+        for p in processes:
+            if p.is_alive():
+                return True
+        return False
+    
+    while processes_going():
+        while q.qsize() > 100:
+            win_loss_tally[q.get()] += 1
+    
+    for p in processes:
+        p.join()
+    
+    while not q.empty():
+        win_loss_tally[q.get()] += 1
+    print()
+    win_loss_probs = win_loss_tally/np.sum(win_loss_tally)
+    return win_loss_probs
 
-def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_opps:list, q:mp.SimpleQueue,  offset:int, lock):
+def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_opps:list, q:mp.Queue,  offset:int, lock):
     dummy_deck = deck.copy()
     lock.acquire()
-    pbar = tqdm(total=len(future_table), desc=f"chunk {offset}", position=offset, mininterval=MININTERVAL)
+    pbar = tqdm(total=len(future_table), desc=f"chunk {offset}", position=offset, mininterval=MININTERVAL,leave=False)
     lock.release()
     start = time.time()
     old = 0
@@ -430,27 +451,37 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
 
         for card in c:
             dummy_deck.append(card)
+    lock.acquire()
+    pbar.close()
+    lock.release()
 
-
-
-    pass
-
-def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:list, num_opps:int, q:mp.SimpleQueue):
-    dummy_deck = deck.copy()
+def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:list, num_opps:int, q:mp.Queue):
+    
 
     for c in combinations(deck,2):
-        opphand = full_tabled + c
+        opphand = full_tabled + list(c)
         oppres = calc_best_hand(opphand)
         opp_reses.append(oppres)
+        # print(len(opp_reses))
         if len(opp_reses) == num_opps:
-            # we have reached the bottom of the recursion, we need to calculate a win/loss tally and push that into the queue
-            pass
+            # we have reached the bottom of the recursion, we need to calculate a win/loss tally and push that onto the queue
+            # a returned 0 indicates a win, a returned 1 is a loss, and a 2 is a tie
+            # this is so that we can have a win/loss tally marker monitoring the queue, and just have it add one to the respective bucket
+            opp_winner = max(opp_reses)
+            if selfres > opp_winner:
+                q.put(0)
+            elif selfres < opp_winner:
+                q.put(1)
+            else:
+                q.put(2)
+            opp_reses.pop()
         else:
+            dummy_deck = deck.copy()
             # we need to 
             for card in c:
                 dummy_deck.remove(card)
             
-            
+            recurse_opp_hand_calc(selfres, full_tabled, opp_reses, dummy_deck, num_opps, q)
 
             for card in c:
                 dummy_deck.append(card)

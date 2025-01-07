@@ -80,7 +80,9 @@ def calc_buckets_mp(hand,combos,q:mp.SimpleQueue,offset:int, lock):
             start = time.time()
         revealed = hand + c
         buckets[calc_best_hand(revealed)[0]] += 1
+    lock.acquire()
     pbar.close()
+    lock.release()
     q.put(buckets)
 
 def gen_self_combos(hand):
