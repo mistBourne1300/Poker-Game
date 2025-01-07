@@ -3,6 +3,12 @@ import time
 from abc import ABC, abstractmethod
 import os
 import pickle
+import json
+import hashlib
+import multiprocessing as mp
+from math import comb
+from itertools import combinations
+from tqdm import tqdm
 
 from utils import *
 
@@ -30,11 +36,13 @@ class player:
 
     def hash_auth(self,auth):
         # get the bits of the auth object, and do something with them
-        hashable = str(pickle.dumps(auth))
-        return hash(hashable)
+        hashable = str(auth).encode()
+        sha256 = hashlib.sha256()
+        sha256.update(hashable)
+        return sha256.hexdigest()
 
     @abstractmethod
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = call_amount
@@ -42,12 +50,12 @@ class player:
             bet_amount = self.money
         return bet_amount
     
-    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
+    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = 0
         try:
-            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names)
+            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players)
         except Exception as e:
             import traceback
             print(f"player {self.name} threw an error ({e})! This causes a fold.")
@@ -100,8 +108,20 @@ class player:
             return []
         return self.hand
     
-
-
+    @abstractmethod
+    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list) -> None:
+        if self.hash_auth(auth) != self.auth:
+            return
+        
+    def get_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list) -> str:
+        # print(auth)
+        if self.hash_auth(auth) != self.auth:
+            return self.name+"invalid hash:"+str(auth)
+        try:
+            self.compute_results(auth, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_names=player_names, player_cards=player_cards)
+            return "successful computation"
+        except Exception as e:
+            return self.name+f" raised an error: {e}"
 
 class human(player):
     @staticmethod
@@ -129,7 +149,7 @@ class human(player):
                 error()
         return bet_amount
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         print(f"{self.name} has {self.money} moneys.")
@@ -151,7 +171,7 @@ class random(player):
     def constructor(name, auth):
         return random(name, auth)
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_perc = .5
@@ -171,7 +191,7 @@ class raiser(player):
     def constructor(name, auth):
         return raiser(name,auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_multiplier = 1.1
@@ -180,3 +200,175 @@ class raiser(player):
         if amount > self.money:
             amount = self.money
         return amount
+
+class tracker(player):
+    @staticmethod
+    def constructor(name, auth):
+        return tracker(name, auth)
+    
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        if not os.path.exists(self.name+"_tracker"):
+            os.mkdir(self.name+"_tracker")
+        for i,name in enumerate(player_names):
+            path = os.path.join(self.name+"_tracker", name+".json")
+            dump = {"call_amount":call_amount, "tabled_cards":tuple(tabled_cards), "worth":others_worth[i], "pot":pot, "bid":player_bids[i],}
+            with open(path,'w') as file:
+                json.dump(dump, file)
+        
+        return super().make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players)
+    
+    def compute_results(self, auth, tabled_cards, others_worth, pot, player_names, player_cards):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        # take a minute to finish results
+        for i in range(10,-1,-1):
+            print(i)
+            time.sleep(1)
+        for i,name in enumerate(player_names):
+            path = os.path.join(self.name+"_tracker", name+".json")
+            if not os.path.exists(path):
+                raise RuntimeError(f"tracker {self.name} cannot find file for {name}")
+            with open(path,'r') as file:
+                print(self.name+str(json.load(file)))
+
+class bayesian(player):
+    @staticmethod
+    def constructor(name, auth):
+        return bayesian(name, auth)
+    
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        return super().make_decision(auth, call_amount, tabled_cards, others_worth, pot, player_bids, player_turn, player_names, folded_players)
+    
+    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)
+
+class expectation(player):
+    MININTERVAL = 0.5
+    @staticmethod
+    def constructor(name, auth):
+        return expectation(name, auth)
+    
+    def __num_opps_to_calculate(self, auth, num_tabled:int, num_players:int):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        
+        if num_tabled < 3:
+            # this is pre-flop, only calculate tabled cards, not opponents cards
+            return 0
+        
+        num_opps = num_players - 1
+
+        num_cores = mp.cpu_count()
+        num_calcs_per_core_per_sec = 10000
+        max_seconds = 10
+        cutoff = num_calcs_per_core_per_sec * max_seconds * num_cores
+        
+        base_calcs = comb(50-num_tabled, 5-num_tabled)
+        num_total_calcs = base_calcs + sum([comb(45 - 2*i,2) for i in range(num_opps)])
+
+        while num_total_calcs > cutoff:
+            print("cannot calculate all players, dropping one")
+            num_opps -= 1
+            if num_players == 2:
+                # we want to always calculate with at least one opponent 
+                # (at least after the flop)
+                break
+            num_total_calcs = base_calcs + sum([comb(45 - 2*i,2) for i in range(num_opps-1)])
+        
+        return num_opps
+
+    def __calculate_prob_win(self, auth, tabled_cards:list, num_players:int):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+
+        # get number of opponents to calculate for, based on how many combos we'd have to run through
+        num_opps = self.__num_opps_to_calculate(auth, len(tabled_cards), num_players)
+        num_opps = 0 # only for testing
+        if num_opps == 0:
+            # TODO: actually split probabilities across each type of hand for myself and the opponent
+            cardsum = self.hand[0][0] + self.hand[1][0]
+            return 1-((28-cardsum)/28)
+
+        # generate possible tabled cards combos
+        deck, _, _, _, _ = create_deck()
+        for c in self.hand:
+            deck.remove(c)
+        for c in tabled_cards:
+            deck.remove(c)
+        
+        cpus = mp.cpu_count()
+        processes = []
+        if len(tabled_cards) < 5:
+            num_tabled_remaining = 5 - len(tabled_cards)
+            future_tabled_combos = [list(c) for c in tqdm(combinations(deck, num_tabled_remaining),desc="creating combos",leave=False)]
+            chunk_size = len(future_tabled_combos)//cpus
+            q = mp.SimpleQueue()
+            lock = mp.Lock()
+            print(f" starting {cpus} processes...")
+            for offset,i in enumerate(range(0,len(future_tabled_combos), chunk_size)):
+                p = mp.Process()
+                p.start()
+                processes.append(p)
+        elif len(tabled_cards) == 5:
+            pass
+
+
+        
+
+
+
+    def __pre_river_win_tally(self, auth, tabled_cards:list, tabled_combos:list, deck:list, opps_to_calc:int, q:mp.SimpleQueue, offset:int, lock):
+        if self.hash_auth(auth) != self.auth:
+            return np.zeros(3)
+
+        win_loss_tally = np.zeros(3)
+        dummy_deck = deck.copy()
+        lock.acquire()
+        pbar= tqdm(total=len(tabled_combos), desc=f"chunk {offset}", position=offset, mininterval=self.MININTERVAL)
+        lock.release()
+        start = time.time()
+        old = 0
+        for i,c in enumerate(tabled_combos):
+            if time.time() - start > self.MININTERVAL:
+                lock.acquire()
+                pbar.update(i-old)
+                lock.release()
+                old = i
+                start = time.time()
+            for card in c:
+                dummy_deck.remove(card)
+            selfhand = self.hand + tabled_cards + c
+            selfres = calc_best_hand(selfhand)
+
+    def __recursive_opp_calc(self, auth, deck:list, opps_res:list, opps_to_calc:int, q:mp.SimpleQueue):
+
+
+
+
+    
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        num_players = len(player_names) - sum(folded_players)
+        prob_win = self.__calculate_prob_win(auth, tabled_cards=tabled_cards, num_players=num_players)
+        max_expected_winnings = -np.inf
+        expected_winnings_argmax = 0
+        for i in range(self.money+1):
+            expected_winnings = prob_win*(pot + sum(player_bids)) + (1-prob_win)*(-i)
+            if expected_winnings > max_expected_winnings:
+                max_expected_winnings = expected_winnings
+                expected_winnings_argmax = i
+        
+        return expected_winnings_argmax
+
+    
+    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)

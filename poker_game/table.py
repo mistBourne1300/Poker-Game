@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import utils
+import multiprocessing as mp
 
 from players import *
 from enum import Enum
@@ -89,9 +90,8 @@ class table:
             current_player = self.players[current_player_idx]
             call_amount = current_raise - current_bids[current_player_idx]
             others_worth = [player.worth() for player in self.players]
-            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players])
-            if not isinstance(current_player, human):
-                utils.confirm("")
+            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players)
+            
             if player_bid < call_amount:
                 if current_player.worth() > 0:
                     folded_players[current_player_idx] = True
@@ -100,8 +100,6 @@ class table:
                     continue
                 else:
                     current_bids[current_player_idx] += player_bid
-                    player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
-                    say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
             elif player_bid > call_amount:
                 current_bids[current_player_idx] += player_bid
                 last_raise_idx = current_player_idx
@@ -109,14 +107,14 @@ class table:
                 say(f"{current_player.get_name()} raises. bid is now {current_raise}")
                 if current_player.worth() == 0:
                     player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
-                    say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
             else:
                 current_bids[current_player_idx] += player_bid
                 say(f"{current_player.get_name()} calls.")
-                if current_player.worth() == 0:
-                    player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
-                    say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
-            
+            if current_player.worth() == 0:
+                player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
+                say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
+            if not isinstance(current_player, human) and current_raise > 0:
+                utils.confirm("")
             current_player_idx = (current_player_idx+1)%len(self.players)
             print(f"\nround {roundabout}:")
             print(f"players: {[player.get_name() for player in self.players]}")
@@ -154,9 +152,8 @@ class table:
             current_player = self.players[current_player_idx]
             call_amount = current_raise - current_bids[current_player_idx]
             others_worth = [player.worth() for player in self.players]
-            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players])
-            if not isinstance(current_player, human):
-                utils.confirm("")
+            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players)
+            
             if player_bid < call_amount:
                 if current_player.worth() > 0:
                     folded_players[current_player_idx] = True
@@ -165,8 +162,6 @@ class table:
                     continue
                 else:
                     current_bids[current_player_idx] += player_bid
-                    player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
-                    say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
             elif player_bid > call_amount:
                 current_bids[current_player_idx] += player_bid
                 last_raise_idx = current_player_idx
@@ -175,7 +170,11 @@ class table:
             else:
                 current_bids[current_player_idx] += player_bid
                 say(f"{current_player.get_name()} calls.")
-
+            if current_player.worth() == 0:
+                player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
+                say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
+            if not isinstance(current_player, human) and current_raise > 0:
+                utils.confirm("")
             current_player_idx = (current_player_idx+1)%len(self.players)
             print(f"\nround {roundabout}:")
             print(f"players: {[player.get_name() for player in self.players]}")
@@ -197,36 +196,61 @@ class table:
             confirm(f"{winner.get_name()} wins {pot} moneys")
             winner.add_money(auth,pot)
             return
+        player_best_hands = [None]*len(self.players)
         player_hands = [None]*len(self.players)
+        player_cards = [None]*len(self.players)
         for idx in range(len(self.players)):
             if folded_players[idx]:
-                player_hands[idx] = (0,0,0,0,0,0)
+                player_best_hands[idx] = (0,0,0,0,0,0)
                 continue
             player = self.players[idx]
             auth = self.auths[idx]
             print(tabled_cards)
             confirm(f"{player.get_name()} reveals hand")
             hand = player.reveal_hand(auth)
-            print(hand)
+            player_cards[idx] = hand
+            cardnames = utils.card_list_to_card_names([utils.tuple_to_str(c) for c in hand])
+            say(f"{player.get_name()} reveals the {cardnames[0]} and the {cardnames[1]}")
             hand = hand + tabled_cards
-            player_hands[idx] = utils.calc_best_hand(hand)
-        winning_order = sorted(range(len(player_hands)), key=player_hands.__getitem__)[::-1]
-        print(f"player_hands_arr: {np.array(player_hands)}")
+            player_hands[idx] = hand
+            player_best_hands[idx] = utils.calc_best_hand(hand)
+        winning_order = sorted(range(len(player_best_hands)), key=player_best_hands.__getitem__)[::-1]
+        print(f"player_best_hands_arr: {np.array(player_best_hands)}")
         print(f"winning_order: {winning_order}")
-        for i in range(len(player_hands)):
+
+        pool = mp.Pool()
+        others_worth = [player.worth() for player in self.players]
+        player_names = [player.get_name() for player in self.players]
+
+        print([player.get_name() for player in self.players])
+        print([auth for auth in self.auths])
+
+        acync_results = [pool.apply_async(player.get_results, args=(self.auths[i], tabled_cards, others_worth, pot, player_names, player_cards)) for i,player in enumerate(self.players)]
+
+        
+        for i in range(len(player_best_hands)):
             #TODO: say out load all players hands
-            pass
+            player = self.players[i]
+            if folded_players[i]:
+                say(f"{player.get_name()} folded")
+                continue
+            hand = player_best_hands[i]
+            cards = player_hands[i]
+            handname = utils.num_to_hand[hand[0]]
+            cardnames = utils.card_list_to_card_names(utils.interpret_hand(hand,cards))
+            say(f"{player.get_name()} has {handname} with {cardnames}")
+        
         starting_winning_indexer = 0
         while pot > 0:
             tie_index = starting_winning_indexer+1
-            while tie_index < len(player_hands):
-                if player_hands[winning_order[starting_winning_indexer]] == player_hands[winning_order[tie_index]]:
+            while tie_index < len(player_best_hands):
+                if player_best_hands[winning_order[starting_winning_indexer]] == player_best_hands[winning_order[tie_index]]:
                     tie_index += 1
                 else:
                     break
             winning_player_indexes = winning_order[starting_winning_indexer:tie_index]
             if len(winning_player_indexes) == 1:
-                if player_max_earnings[winning_player_indexes[0]] < np.inf:
+                if player_max_earnings[winning_player_indexes[0]] < pot:
                     max_earning = player_max_earnings[winning_player_indexes[0]]
                     confirm(f"{self.players[winning_player_indexes[0]].get_name()} wins {max_earning} moneys")
                     auth = self.auths[winning_player_indexes[0]]
@@ -256,7 +280,8 @@ class table:
                     for i,winner_idx in enumerate(winning_player_indexes):
                         player = self.players[winner_idx]
                         max_earnings = player_max_earnings[winner_idx]
-                        say(f"{player.get_name()} can only win {max_earnings}. the rest will be redistributed")
+                        if max_earnings < np.inf:
+                            say(f"{player.get_name()} can only win {max_earnings}. the rest will be redistributed")
                         if max_earnings < player_winnings[i]:
                             remainder += player_winnings[i] - max_earnings
                             player_winnings[i] = max_earnings
@@ -272,6 +297,21 @@ class table:
                     player.add_money(auth, winnings)
                     pot -= winnings
             starting_winning_indexer = tie_index
+        
+        all_finished = True
+        for res in acync_results:
+            if not res.ready():
+                all_finished = False
+        
+        if not all_finished:
+            utils.say("waiting for AI computation to finish")
+        
+        pool.close()
+        pool.join()
+        for res in acync_results:
+            print(res.get())
+
+
 
     def check_lost_players(self, dealer_idx):
         need_recheck = True
@@ -288,7 +328,6 @@ class table:
                         dealer_idx -= 1
                     break
         return dealer_idx+1
-
 
     def __hybrid_game(self):
         """
@@ -357,12 +396,8 @@ class table:
                 say("all players have folded. distributing wealth")
             self.distribute_wealth(pot, folded_players, player_max_earnings, tabled_cards)
             dealer_idx = self.check_lost_players(dealer_idx)%len(self.players)
-            
-
-
-
-
-        pass
+        winner = self.players[0]
+        say(f"{winner.get_name()} has won!")
 
     def __computer_game(self, verbose):
         """
@@ -418,7 +453,7 @@ class table:
 
             pot, folded_players, player_max_earnings = self.post_flop_bet(dealer_idx, pot, folded_players, player_max_earnings, tabled_cards)
 
-            player_hands = [None]*len(self.players)
+            player_best_hands = [None]*len(self.players)
             best_idx = 0
             best_hand = None
             for idx in range(len(self.players)):
@@ -428,14 +463,13 @@ class table:
                 auth = self.auths[idx]
                 hand = player.reveal_hand(auth) + tabled_cards
                 hand_tuple = utils.calc_best_hand(hand)
-                
-                
-
-
+    
         
 
 if __name__ == "__main__":
-    t = table(player_constructors=[random.constructor, random.constructor, random.constructor, random.constructor],player_names=["1", "2", "3", "4"],starting_money=10)
+    t = table(player_constructors=[tracker.constructor, expectation.constructor],player_names=["tracker", "expector"],starting_money=10)
     for p in t.players:
         print(p.get_name(),":",type(p))
+    os.system("clear")
     t.play_game()
+    

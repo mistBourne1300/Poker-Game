@@ -1,23 +1,22 @@
 from players import *
 import utils
 import pickle
+from tqdm import tqdm
 import numpy as np
-p1auth = "1234567890"
-p1 = human("steve",p1auth)
-p1.new_hand(p1auth, [(0,0),(0,0)])
-# print(p1.reveal_hand(p1auth))
-# p2auth = 987654321
-# p2 = random("STEVE WILL DIE",p2auth)
-# p3 = raiser("WINNER HERE", p2)
+from itertools import permutations
 
-l = [(9,0,0), (1,0,0), (8,4,1), None, None]
-newl = []
-for val in l:
-    if val is None:
-        newl.append((0,0,0))
-    else:
-        newl.append(val)
-newl = np.array(newl)
-print(np.argsort(newl,axis=0)[::-1])
-print(l)
-print(newl)
+actual = (5,11,10,9,8,6)
+
+for perm in tqdm(list(permutations(['9d', '6d', '8d', '10d', 'jd', '3d', '2d']))):
+    # print(perm)
+    hand = [utils.str_to_tuple(rs) for rs in perm]
+    best_hand_tuple = utils.calc_best_hand(hand)
+    if best_hand_tuple != actual:
+        print(perm)
+        print(best_hand_tuple)
+        print()
+    
+
+    
+
+print("best hand tuple:",utils.calc_best_hand(hand))

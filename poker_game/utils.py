@@ -2,14 +2,18 @@ import numpy as np
 import time
 from heapq import nlargest
 import os
+import multiprocessing as mp
+from tqdm import tqdm
+from itertools import combinations
+MININTERVAL = 0.5
 
 ranks = [r for r in range(14,1,-1)]
 suits = [s for s in range(4)]
 strranks = ['2','3','4','5','6','7','8','9','10','j','q','k','a']
 strsuits = ['s','h','c','d']
 num_to_hand = ["high card","pair","two pair", "three kind","straight","flush","full house","four kind","straight flush","royal flush"]
-remaining_cards = [(r,s) for r in ranks for s in suits]
-str_remaining = [r+s for r in strranks for s in strsuits]
+# remaining_cards = [(r,s) for r in ranks for s in suits]
+# str_remaining = [r+s for r in strranks for s in strsuits]
 full_str_deck = [r+s for r in strranks for s in strsuits]
 full_tuple_deck = [(r,s) for r in ranks for s in suits]
 strranks = ["0","0"] + strranks
@@ -25,7 +29,6 @@ def create_deck():
     strdeck = [r+s for r in strranks for s in strsuits]
     return deck, strdeck, ['0','0'] + strranks, strsuits, num_to_hand
 
-
 def calc_best_hand(hand):
     scount = np.zeros(4)
     for c in hand:
@@ -37,16 +40,16 @@ def calc_best_hand(hand):
     if np.any(flush_bool):
         # we have a flush
         idx = np.argmax(flush_bool)
-        rcount = np.zeros(15)
+        rcount = np.zeros(15,dtype=int)
         for c in hand:
             if c[1] == idx: rcount[c[0]] += 1
-        # print(flush)
-        # print(rcount)
+        # print("rcount:",rcount)
+        # print("argssorted:",np.argsort(rcount)[::-1][:5])
         high = contains_straight(rcount)
 
         # print(high)
         if high == 0:
-            return 5, *tuple(np.argsort(rcount)[-1:-6:-1]) # flush
+            return 5, *tuple(np.argsort(rcount,kind='stable')[-1:-6:-1]) # flush
         if high == 14: return 9,0,0,0,0,0 # (royal) straight flush
         return 8,high,0,0,0,0 # straight flush
     else:
@@ -127,11 +130,10 @@ def tuple_to_str(cardtup):
     return strranks[cardtup[0]] + strsuits[cardtup[1]]
 
 def hand_to_str(hand):
-    nruter = "[ "
+    nruter = []
     for card in hand:
-        nruter += tuple_to_str(card) + " "
-    nruter += "]"
-    return nruter
+        nruter.append(tuple_to_str(card))
+    return str(nruter)
 
 def fancy_out(msg:str,end="\n", sleep_time = None):
     if sleep_time is None:
@@ -142,7 +144,7 @@ def fancy_out(msg:str,end="\n", sleep_time = None):
     print("",end=end)
 
 def interpret_hand(best_hand, hand):
-    nruter = ""
+    nruter = []
 
     def get_flush_suit_str():
         scount = np.zeros(4)
@@ -155,8 +157,7 @@ def interpret_hand(best_hand, hand):
         # royal flush
         suit = get_flush_suit_str()
         for r in ['a','k','q','j','10']:
-            nruter = nruter + r+suit + " "
-        nruter = nruter[:-1]
+            nruter.append(r+suit)
         pass
     elif best_hand[0] == 8:
         # straight flush
@@ -164,18 +165,17 @@ def interpret_hand(best_hand, hand):
         high = best_hand[1]
         for i in range(5):
             rank = strranks[high-i]
-            nruter += rank+suit + " "
-        nruter = nruter[:-1]
+            nruter.append(rank+suit)
         pass
     elif best_hand[0] == 7:
         # four kind
         four_rank = strranks[best_hand[1]]
         extra_rank = best_hand[2]
         for suit in strsuits:
-            nruter += four_rank+suit + " "
+            nruter.append(four_rank+suit)
         for c in hand:
             if c[0]==extra_rank:
-                nruter += tuple_to_str(c)
+                nruter.append(tuple_to_str(c))
                 break
         pass
     elif best_hand[0] == 6:
@@ -185,25 +185,23 @@ def interpret_hand(best_hand, hand):
         count = 0
         for c in hand:
             if c[0] == three_rank:
-                nruter += tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 count += 1
             if count == 3:
                 break
         for c in hand:
             if c[0] == two_rank:
-                nruter += tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 count += 1
             if count == 5:
                 break
-        nruter = nruter[:-1] 
         pass
     elif best_hand[0] == 5:
         # flush
         suit = get_flush_suit_str()
         for r in best_hand[1:]:
             rank = strranks[r]
-            nruter = nruter + rank+suit + " "
-        nruter = nruter[:-1]
+            nruter.append(rank+suit)
         pass
     elif best_hand[0] == 4:
         # straight
@@ -212,9 +210,8 @@ def interpret_hand(best_hand, hand):
             r = high-i
             for c in hand:
                 if c[0] == r:
-                    nruter = nruter + tuple_to_str(c) + " "
+                    nruter.append(tuple_to_str(c))
                     break
-        nruter = nruter[:-1]
         pass
     elif best_hand[0] == 3:
         # three kind
@@ -224,17 +221,17 @@ def interpret_hand(best_hand, hand):
         count = 0
         for c in hand:
             if c[0] == three_rank:
-                nruter = nruter + tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 count += 1
             if count == 3:
                 break
         for c in hand:
             if c[0] == r1:
-                nruter = nruter + tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 break
         for c in hand:
             if c[0] == r2:
-                nruter = nruter + tuple_to_str(c)
+                nruter.append(tuple_to_str(c))
                 break
         pass
     elif best_hand[0] == 2:
@@ -245,19 +242,19 @@ def interpret_hand(best_hand, hand):
         count = 0
         for c in hand:
             if c[0] == prank1:
-                nruter = nruter + tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 count += 1
             if count == 2:
                 break
         for c in hand:
             if c[0] == prank2:
-                nruter = nruter + tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 count += 1
             if count == 4:
                 break
         for c in hand:
             if c[0] == extra_rank:
-                nruter = nruter + tuple_to_str(c)
+                nruter.append(tuple_to_str(c))
                 break
         pass
     elif best_hand[0] == 1:
@@ -269,29 +266,30 @@ def interpret_hand(best_hand, hand):
         count = 0
         for c in hand:
             if c[0] == prank:
-                nruter = nruter + tuple_to_str(c) + " "
+                nruter.append(tuple_to_str(c))
                 count += 1
             if count == 2:
                 break
         for r in [extra1,extra2,extra3]:
             for c in hand:
                 if c[0] == r:
-                    nruter = nruter + tuple_to_str(c) + " "
+                    nruter.append(tuple_to_str(c))
                     break
-        nruter = nruter[:-1]
+        pass
+    elif best_hand[1] == 0:
+        # folded
         pass
     else:
         # high card
         for r in best_hand[1:]:
             for c in hand:
                 if c[0] == r:
-                    nruter = nruter + tuple_to_str(c) + " "
+                    nruter.append(tuple_to_str(c))
                     break
-        nruter = nruter[:-1]
         pass
     return nruter
 
-def add_to_hand():
+def add_to_hand(str_remaining=full_str_deck, remaining_cards=full_tuple_deck):
         next_cards = input("enter next cards: ")
         any_added = False
         for next_card in next_cards.split():
@@ -340,3 +338,120 @@ def confirm(statement):
     print("confirm " + statement)
     os.system(f'say "confirm {statement}"')
     temp = input("press enter:")
+
+def card_list_to_card_names(cards):
+    nruter = []
+    for card in cards:
+        r = card[0]
+        cardname = ""
+        if r == 'a':
+            cardname = "ace of "
+        elif r == 'k':
+            cardname = "king of "
+        elif r == 'q':
+            cardname = "queen of "
+        elif r == 'j':
+            cardname = "jack of "
+        elif r == '1':
+            cardname = "10 of "
+        elif r == '9':
+            cardname = "9 of "
+        elif r == '8':
+            cardname = "8 of "
+        elif r == '7':
+            cardname = "7 of "
+        elif r == '6':
+            cardname = "6 of "
+        elif r == '5':
+            cardname = "5 of "
+        elif r == '4':
+            cardname = "4 of "
+        elif r == '3':
+            cardname = "3 of "
+        elif r == '2':
+            cardname = "2 of "
+        
+        s = card[-1]
+        if s == 's':
+            cardname += "spades"
+        elif s == 'h':
+            cardname += "hearts"
+        elif s == 'c':
+            cardname += "clubs"
+        elif s == 'd':
+            cardname += "diamonds"
+        nruter.append(cardname)
+    return nruter
+
+
+def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
+    deck, _, _, _, _ = create_deck()
+    for c in hand:
+        deck.remove(c)
+    for c in tabled:
+        deck.remove(c)
+    cpus = mp.cpu_count()
+    processes = []
+    if len(tabled) < 5:
+        num_tabled_remaining = 5-len(tabled)
+        future_table = [list(c) for c in tqdm(combinations(deck, num_tabled_remaining), desc="creating combos", leave=False)]
+        chunk_size = len(future_table)//cpus
+        q = mp.SimpleQueue()
+        lock = mp.Lock()
+        print(f" starting {cpus} processes...")
+        for offset,i in enumerate(range(0,len(future_table), chunk_size)):
+            p = mp.Process()
+            p.start()
+            processes.append(p)
+        else:
+            pass
+    pass
+
+def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_opps:list, q:mp.SimpleQueue,  offset:int, lock):
+    dummy_deck = deck.copy()
+    lock.acquire()
+    pbar = tqdm(total=len(future_table), desc=f"chunk {offset}", position=offset, mininterval=MININTERVAL)
+    lock.release()
+    start = time.time()
+    old = 0
+    for i,c in enumerate(future_table):
+        if time.time() - start > MININTERVAL:
+            lock.acquire()
+            pbar.update(i-old)
+            lock.release()
+            old=i
+            start = time.time()
+        for card in c:
+            dummy_deck.remove(card)
+        full_tabled = tabled + c
+        selfhand = hand + full_tabled
+        selfres = calc_best_hand(selfhand)
+        recurse_opp_hand_calc(selfres, full_tabled, [], dummy_deck, num_opps, q)
+
+        for card in c:
+            dummy_deck.append(card)
+
+
+
+    pass
+
+def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:list, num_opps:int, q:mp.SimpleQueue):
+    dummy_deck = deck.copy()
+
+    for c in combinations(deck,2):
+        opphand = full_tabled + c
+        oppres = calc_best_hand(opphand)
+        opp_reses.append(oppres)
+        if len(opp_reses) == num_opps:
+            # we have reached the bottom of the recursion, we need to calculate a win/loss tally and push that into the queue
+            pass
+        else:
+            # we need to 
+            for card in c:
+                dummy_deck.remove(card)
+            
+            
+
+            for card in c:
+                dummy_deck.append(card)
+
