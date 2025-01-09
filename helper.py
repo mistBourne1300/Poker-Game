@@ -147,6 +147,7 @@ def display_probs_mp_win_loss(hand):
     win_msg = "Win probability:"
     loss_msg = "Loss Probability:"
     tie_msg = "Tie Probability:"
+    print("win_loss_taly",win_loss_tally)
     print()
     fancy_out(f"{win_msg: <20}{np.round(win_probs[0],7)}")
     fancy_out(f"{loss_msg: <20}{np.round(win_probs[1],7)}")
@@ -249,7 +250,7 @@ def calc_best_hand(hand):
     if np.any(flush_bool):
         # we have a flush
         idx = np.argmax(flush_bool)
-        rcount = np.zeros(15)
+        rcount = np.zeros(15,dtype=int)
         for c in hand:
             if c[1] == idx: rcount[c[0]] += 1
         # print(flush)
@@ -284,9 +285,7 @@ def calc_best_hand(hand):
                 [maximum, submax] = nlargest(2,count_vals[1:,1])
                 return 3,count_vals[0][1],maximum,submax,0,0 # three kind
             elif len(count_vals) == 2:
-                print("here")
                 maximum = max(count_vals[1:,1])
-                print(maximum)
                 return 3,count_vals[0,1],maximum,0,0,0 # incomplete three kind
             else:
                 return 3,count_vals[0,1],0,0,0,0 # incomplete three kind
@@ -315,7 +314,7 @@ def calc_best_hand(hand):
         return 0,*high_cards
     
 def contains_straight(rcount):
-    for high in range(len(rcount)-1,5,-1):
+    for high in range(len(rcount)-1,4,-1):
         # print(high)
         finished = True
         for run in range(high,high-5,-1):
@@ -325,6 +324,8 @@ def contains_straight(rcount):
                 finished = False
                 break
         if finished: return high
+    if rcount[5] and rcount[4] and rcount[3] and rcount[2] and rcount[14]:
+        return 5
     return 0
 
 def highest_kinds(rcount):
@@ -375,7 +376,10 @@ def interpret_hand(best_hand, hand):
         suit = get_flush_suit_str()
         high = best_hand[1]
         for i in range(5):
-            rank = strranks[high-i]
+            r = high-i
+            if r==1:
+                r=14
+            rank = strranks[r]
             nruter += rank+suit + " "
         nruter = nruter[:-1]
         pass
@@ -422,6 +426,8 @@ def interpret_hand(best_hand, hand):
         high = best_hand[1]
         for i in range(5):
             r = high-i
+            if r==1:
+                r=14
             for c in hand:
                 if c[0] == r:
                     nruter = nruter + tuple_to_str(c) + " "

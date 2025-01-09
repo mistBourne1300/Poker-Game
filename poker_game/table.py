@@ -467,7 +467,7 @@ class table:
         
 
 if __name__ == "__main__":
-    t = table(player_constructors=[tracker.constructor, expectation.constructor],player_names=["tracker", "expector"],starting_money=10)
+    t = table(player_constructors=[tracker.constructor, expector.constructor],player_names=["tracker", "expector"],starting_money=10)
     for p in t.players:
         print(p.get_name(),":",type(p))
     os.system("clear")
