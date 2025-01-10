@@ -3,9 +3,9 @@ from players import expector
 import matplotlib.pyplot as plt
 import numpy as np
 
-num_generations = 2
-pop_per_generation = 10
-moneys_per_player = 5
+num_generations = 10
+pop_per_generation = 100
+moneys_per_player = 10
 exponent_range = (1,4)
 
 if __name__ == "__main__":
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     auths = []
     for exp in exponents:
         new_auth = np.random.randint(1000000)
-        new_expector = expector.constructor(f"x{exp}", auth = new_auth)
+        new_expector = expector.constructor(f"x{exp:.3f}", auth = new_auth)
         expector.EXPONENT = exp
         population.append(new_expector)
         auths.append(new_auth)
@@ -64,10 +64,10 @@ if __name__ == "__main__":
 
         num_to_repopulate = pop_per_generation - len(population)
 
-        for exp in np.random.normal(loc=winning_exps_mean, scale=winning_exp_std, size=num_to_repopulate):
+        for exp in np.random.normal(loc=winning_exps_mean, scale=winning_exp_std+np.random.random()/10, size=num_to_repopulate):
             new_auth = np.random.randint(1000000)
-            new_expector = expector(f"x{exp}", new_auth)
-            expector.EXPONENT = exp
+            new_expector = expector(f"x{exp:.3f}", new_auth)
+            new_expector.EXPONENT = exp
             population.append(new_expector)
             auths.append(new_auth)
         
@@ -75,7 +75,10 @@ if __name__ == "__main__":
         np.save("exponent_data", np.array(exponents_over_time))
     exponents_over_time = np.array(exponents_over_time)
     [plt.plot(exponents_over_time[:,i]) for i in range(exponents_over_time.shape[1])]
-
+    plt.title("exponents over time")
+    plt.xlabel("generation")
+    plt.ylabel("exponents (unordered)")
+    plt.savefig("exponents_over_time.jpg")
 
 
 
