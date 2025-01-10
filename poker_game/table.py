@@ -18,7 +18,7 @@ class mode(Enum):
     COMPUTER_ONLY = 2
 
 class table:
-    def __init__(self, player_constructors:list, player_names:list, starting_money:int, small_blind:int=1, big_blind:int=None):
+    def __init__(self, player_constructors:list, player_names:list, starting_money:int, small_blind:int=1, big_blind:int=None, say:callable=utils.say):
         assert len(player_constructors) == len(player_names)
         if big_blind is None:
             big_blind = small_blind*2
@@ -27,6 +27,7 @@ class table:
         self.players = []
         self.auths = []
         self.MODE = mode.COMPUTER_ONLY
+        self.say = say
         for i,constructor in enumerate(player_constructors):
             print(i,player_names[i])
             auth = np.random.randint(1000000)
@@ -53,18 +54,18 @@ class table:
         current_bids[small_blind_index] = small_blind_player.blind(small_blind_auth, self.small_blind)
         if current_bids[small_blind_index] < self.small_blind or small_blind_player.worth() == 0:
             player_max_earnings[small_blind_index] = current_bids[small_blind_index]*len(self.players)
-            say(f"{small_blind_player.get_name()} is all in with {current_bids[small_blind_index]} for small blind.\
+            self.say(f"{small_blind_player.get_name()} is all in with {current_bids[small_blind_index]} for small blind.\
                 Their max earning potential is now {player_max_earnings[small_blind_index]}")
-        utils.confirm(f"{small_blind_player.get_name()} pays small blind of {current_bids[small_blind_index]}") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{small_blind_player.get_name()} pays small blind of {current_bids[small_blind_index]}")
+        utils.confirm(f"{small_blind_player.get_name()} pays small blind of {current_bids[small_blind_index]}") if self.MODE == mode.HYBRID_PLAY else self.say(f"{small_blind_player.get_name()} pays small blind of {current_bids[small_blind_index]}")
 
         current_bids[big_blind_index] = big_blind_player.blind(big_blind_auth, self.big_blind)
         if current_bids[big_blind_index] < self.big_blind or big_blind_player.worth() == 0:
             player_max_earnings[big_blind_index] = current_bids[big_blind_index]*len(self.players)
-            say(f"{big_blind_player.get_name()} is all in with {current_bids[big_blind_index]} for big blind.\
+            self.say(f"{big_blind_player.get_name()} is all in with {current_bids[big_blind_index]} for big blind.\
                 Their max earning potential is now {player_max_earnings[big_blind_index]}")
         if current_bids[big_blind_index] < self.big_blind:
-            say(f"bet amount is still {self.big_blind}")
-        utils.confirm(f"{big_blind_player.get_name()} pays big blind of {current_bids[big_blind_index]}") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{big_blind_player.get_name()} pays big blind of {current_bids[big_blind_index]}") 
+            self.say(f"bet amount is still {self.big_blind}")
+        utils.confirm(f"{big_blind_player.get_name()} pays big blind of {current_bids[big_blind_index]}") if self.MODE == mode.HYBRID_PLAY else self.say(f"{big_blind_player.get_name()} pays big blind of {current_bids[big_blind_index]}") 
 
 
         return current_bids, player_max_earnings
@@ -97,7 +98,7 @@ class table:
                 if current_player.worth() > 0:
                     folded_players[current_player_idx] = True
                     current_player_idx = (current_player_idx+1)%len(self.players)
-                    say(f"{current_player.get_name()} folds.")
+                    self.say(f"{current_player.get_name()} folds.")
                     continue
                 else:
                     current_bids[current_player_idx] += player_bid
@@ -105,15 +106,15 @@ class table:
                 current_bids[current_player_idx] += player_bid
                 last_raise_idx = current_player_idx
                 current_raise = current_bids[current_player_idx]
-                say(f"{current_player.get_name()} raises. bid is now {current_raise}")
+                self.say(f"{current_player.get_name()} raises. bid is now {current_raise}")
                 if current_player.worth() == 0:
                     player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
             else:
                 current_bids[current_player_idx] += player_bid
-                say(f"{current_player.get_name()} calls.")
+                self.say(f"{current_player.get_name()} calls.")
             if current_player.worth() == 0:
                 player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
-                say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
+                self.say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
             if not isinstance(current_player, players.human) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
                 utils.confirm("")
             current_player_idx = (current_player_idx+1)%len(self.players)
@@ -159,7 +160,7 @@ class table:
                 if current_player.worth() > 0:
                     folded_players[current_player_idx] = True
                     current_player_idx = (current_player_idx+1)%len(self.players)
-                    say(f"{current_player.get_name()} folds.")
+                    self.say(f"{current_player.get_name()} folds.")
                     continue
                 else:
                     current_bids[current_player_idx] += player_bid
@@ -167,13 +168,13 @@ class table:
                 current_bids[current_player_idx] += player_bid
                 last_raise_idx = current_player_idx
                 current_raise = current_bids[current_player_idx]
-                say(f"{current_player.get_name()} raises. bid is now {current_raise}")
+                self.say(f"{current_player.get_name()} raises. bid is now {current_raise}")
             else:
                 current_bids[current_player_idx] += player_bid
-                say(f"{current_player.get_name()} calls.")
+                self.say(f"{current_player.get_name()} calls.")
             if current_player.worth() == 0:
                 player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
-                say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
+                self.say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
             if not isinstance(current_player, players.human) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
                 utils.confirm("")
             current_player_idx = (current_player_idx+1)%len(self.players)
@@ -194,7 +195,7 @@ class table:
             winner_idx = folded_players.index(False)
             winner = self.players[winner_idx]
             auth = self.auths[winner_idx]
-            confirm(f"{winner.get_name()} wins {pot} moneys") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{winner.get_name()} wins {pot} moneys")
+            confirm(f"{winner.get_name()} wins {pot} moneys") if self.MODE == mode.HYBRID_PLAY else self.say(f"{winner.get_name()} wins {pot} moneys")
             winner.add_money(auth,pot)
             return
         player_best_hands = [None]*len(self.players)
@@ -207,11 +208,11 @@ class table:
             player = self.players[idx]
             auth = self.auths[idx]
             print(tabled_cards)
-            confirm(f"{player.get_name()} reveals hand") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{player.get_name()} reveals hand")
+            confirm(f"{player.get_name()} reveals hand") if self.MODE == mode.HYBRID_PLAY else self.say(f"{player.get_name()} reveals hand")
             hand = player.reveal_hand(auth)
             player_cards[idx] = hand
             cardnames = utils.card_list_to_card_names([utils.tuple_to_str(c) for c in hand])
-            say(f"{player.get_name()} reveals the {cardnames[0]} and the {cardnames[1]}")
+            self.say(f"{player.get_name()} reveals the {cardnames[0]} and the {cardnames[1]}")
             hand = hand + tabled_cards
             player_hands[idx] = hand
             player_best_hands[idx] = utils.calc_best_hand(hand)
@@ -233,13 +234,13 @@ class table:
             #TODO: say out load all players hands
             player = self.players[i]
             if folded_players[i]:
-                say(f"{player.get_name()} folded")
+                self.say(f"{player.get_name()} folded")
                 continue
             hand = player_best_hands[i]
             cards = player_hands[i]
             handname = utils.num_to_hand[hand[0]]
             cardnames = utils.card_list_to_card_names(utils.interpret_hand(hand,cards))
-            say(f"{player.get_name()} has {handname} with {cardnames}")
+            self.say(f"{player.get_name()} has {handname} with {cardnames}")
         
         starting_winning_indexer = 0
         while pot > 0:
@@ -253,25 +254,25 @@ class table:
             if len(winning_player_indexes) == 1:
                 if player_max_earnings[winning_player_indexes[0]] < pot:
                     max_earning = player_max_earnings[winning_player_indexes[0]]
-                    confirm(f"{self.players[winning_player_indexes[0]].get_name()} wins {max_earning} moneys") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{self.players[winning_player_indexes[0]].get_name()} wins {max_earning} moneys")
+                    confirm(f"{self.players[winning_player_indexes[0]].get_name()} wins {max_earning} moneys") if self.MODE == mode.HYBRID_PLAY else self.say(f"{self.players[winning_player_indexes[0]].get_name()} wins {max_earning} moneys")
                     auth = self.auths[winning_player_indexes[0]]
                     self.players[winning_player_indexes[0]].add_money(auth, max_earning)
                     pot -= max_earning
                 else:
-                    confirm(f"{self.players[winning_player_indexes[0]].get_name()} wins the pot of {pot} moneys") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{self.players[winning_player_indexes[0]].get_name()} wins the pot of {pot} moneys")
+                    confirm(f"{self.players[winning_player_indexes[0]].get_name()} wins the pot of {pot} moneys") if self.MODE == mode.HYBRID_PLAY else self.say(f"{self.players[winning_player_indexes[0]].get_name()} wins the pot of {pot} moneys")
                     auth = self.auths[winning_player_indexes[0]]
                     self.players[winning_player_indexes[0]].add_money(auth, pot)
                     pot = 0
                 pass
             else:
-                say(f"we have a tie between {[self.players[winning_player_indexes[i]].get_name() for i in range(len(winning_player_indexes))]}")
+                self.say(f"we have a tie between {[self.players[winning_player_indexes[i]].get_name() for i in range(len(winning_player_indexes))]}")
                 pot_divided = pot//len(winning_player_indexes)
                 remainder = pot%len(winning_player_indexes)
                 player_winnings = [pot_divided]*len(winning_player_indexes)
                 while remainder > 0:
-                    # say(f"{pot} cannot be divided equally among {len(winning_player_indexes)} players.")
+                    self.say(f"{pot} cannot be divided equally among {len(winning_player_indexes)} players.")
                     remainder_doling_starting_index = np.random.randint(len(winning_player_indexes))
-                    say(f"remainder of {remainder} will be doled out starting with {self.players[winning_player_indexes[remainder_doling_starting_index]].get_name()}.")
+                    self.say(f"remainder of {remainder} will be doled out starting with {self.players[winning_player_indexes[remainder_doling_starting_index]].get_name()}.")
                     while remainder > 0:
                         player_winnings[remainder_doling_starting_index] += 1
                         remainder -= 1
@@ -282,7 +283,7 @@ class table:
                         player = self.players[winner_idx]
                         max_earnings = player_max_earnings[winner_idx]
                         if max_earnings < np.inf:
-                            say(f"{player.get_name()} can only win {max_earnings}. the rest will be redistributed")
+                            self.say(f"{player.get_name()} can only win {max_earnings}. the rest will be redistributed")
                         if max_earnings < player_winnings[i]:
                             remainder += player_winnings[i] - max_earnings
                             player_winnings[i] = max_earnings
@@ -294,7 +295,7 @@ class table:
                     auth = self.auths[idx]
                     player = self.players[idx]
                     winnings = player_winnings[i]
-                    confirm(f"{player.get_name()} wins {winnings} moneys") if self.MODE == mode.HYBRID_PLAY else utils.say(f"{player.get_name()} wins {winnings} moneys")
+                    confirm(f"{player.get_name()} wins {winnings} moneys") if self.MODE == mode.HYBRID_PLAY else self.say(f"{player.get_name()} wins {winnings} moneys")
                     player.add_money(auth, winnings)
                     pot -= winnings
             starting_winning_indexer = tie_index
@@ -305,7 +306,7 @@ class table:
                 all_finished = False
         
         if not all_finished:
-            utils.say("waiting for AI computation to finish")
+            self.say("waiting for AI computation to finish")
         
         pool.close()
         pool.join()
@@ -321,7 +322,7 @@ class table:
                     need_recheck = True
                     loser = self.players.pop(i)
                     self.auths.pop(i)
-                    say(f"{loser.get_name()} has lost")
+                    self.say(f"{loser.get_name()} has lost")
                     need_recheck = True
                     if i <= dealer_idx:
                         dealer_idx -= 1
@@ -337,11 +338,11 @@ class table:
         while len(self.players) > 1:
 
             for player in self.players:
-                say(f"{player.get_name()} has {player.worth()} moneys")
+                self.say(f"{player.get_name()} has {player.worth()} moneys")
 
             print()
             dealer_name = self.players[dealer_idx].get_name()
-            utils.say(f"{dealer_name} deals.")
+            self.say(f"{dealer_name} deals.")
             if self.MODE == mode.HYBRID_PLAY: utils.confirm(f"deal.")
             remaining_deck, str_remaining, strranks, strsuits, num_to_hand = utils.create_deck()
             tabled_cards = []
@@ -364,10 +365,10 @@ class table:
             # TODO: if everybody but one folded, end the round before moving to the next phase
 
             pot, folded_players, player_max_earnings = self.pre_flop_bet(dealer_idx)
-            say(f"pot is now {pot}")
+            self.say(f"pot is now {pot}")
 
             if sum(folded_players) >= len(self.players)-1:
-                say("all players have folded. distributing wealth")
+                self.say("all players have folded. distributing wealth")
                 self.distribute_wealth(pot, folded_players, player_max_earnings, tabled_cards)
                 dealer_idx = self.check_lost_players(dealer_idx)%len(self.players)
                 continue
@@ -376,13 +377,13 @@ class table:
                     say(f"{self.players[dealer_idx].get_name()}, deal the flop. Enter cards: ")
                     utils.add_to_list(tabled_cards, str_remaining, remaining_deck, max_size=3)
                 else:
-                    say(f"{self.players[dealer_idx].get_name()} deals the flop.")
+                    self.say(f"{self.players[dealer_idx].get_name()} deals the flop.")
                     utils.computer_add(tabled_cards, str_remaining=str_remaining, remaining_cards=remaining_deck, max_size=3)
             if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) > 1:
                 pot, folded_players, player_max_earnings = self.post_flop_bet(dealer_idx, pot, folded_players, player_max_earnings, tabled_cards)
-                say(f"pot is now {pot}")
+                self.say(f"pot is now {pot}")
             if sum(folded_players) >= len(self.players)-1:
-                say("all players have folded. distributing wealth")
+                self.say("all players have folded. distributing wealth")
                 self.distribute_wealth(pot, folded_players, player_max_earnings, tabled_cards)
                 dealer_idx = self.check_lost_players(dealer_idx)%len(self.players)
                 continue
@@ -391,13 +392,13 @@ class table:
                     say(f"{self.players[dealer_idx].get_name()}, deal the turn. Enter card: ")
                     utils.add_to_list(tabled_cards, str_remaining, remaining_deck, max_size=4)
                 else:
-                    say(f"{self.players[dealer_idx].get_name()} deals the turn.")
+                    self.say(f"{self.players[dealer_idx].get_name()} deals the turn.")
                     utils.computer_add(tabled_cards, str_remaining=str_remaining, remaining_cards=remaining_deck, max_size=4)
             if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) > 1:
                 pot, folded_players, player_max_earnings = self.post_flop_bet(dealer_idx, pot, folded_players, player_max_earnings, tabled_cards)
-                say(f"pot is now {pot}")
+                self.say(f"pot is now {pot}")
             if sum(folded_players) >= len(self.players)-1:
-                say("all players have folded. distributing wealth")
+                self.say("all players have folded. distributing wealth")
                 self.distribute_wealth(pot, folded_players, player_max_earnings, tabled_cards)
                 dealer_idx = self.check_lost_players(dealer_idx)%len(self.players)
                 continue
@@ -406,20 +407,20 @@ class table:
                     say(f"{self.players[dealer_idx].get_name()}, deal the river. Enter card: ")
                     utils.add_to_list(tabled_cards, str_remaining, remaining_deck, max_size=5)
                 else:
-                    say(f"{self.players[dealer_idx].get_name()} deals the river.")
+                    self.say(f"{self.players[dealer_idx].get_name()} deals the river.")
                     utils.computer_add(tabled_cards, str_remaining=str_remaining, remaining_cards=remaining_deck, max_size=5)
             if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) > 1:
                 pot, folded_players, player_max_earnings = self.post_flop_bet(dealer_idx, pot, folded_players, player_max_earnings, tabled_cards)
-                say(f"pot is now {pot}")
+                self.say(f"pot is now {pot}")
             if sum(folded_players) >= len(self.players)-1:
-                say("all players have folded. distributing wealth")
+                self.say("all players have folded. distributing wealth")
             self.distribute_wealth(pot, folded_players, player_max_earnings, tabled_cards)
             dealer_idx = self.check_lost_players(dealer_idx)%len(self.players)
         winner = self.players[0]
-        say(f"{winner.get_name()} wins!")
+        self.say(f"{winner.get_name()} wins!")
 
 if __name__ == "__main__":
-    t = table(player_constructors=[players.expector.constructor, players.expector.constructor, players.expector.constructor, players.expector.constructor, players.expector.constructor],player_names=["x1", "x2", "x3", "x4", "x5"],starting_money=100)
+    t = table(player_constructors=[players.expector.constructor, players.expector.constructor, players.expector.constructor, players.expector.constructor, players.expector.constructor],player_names=["x1", "x2", "x3", "x4", "x5"],starting_money=100,say=print)
     for p in t.players:
         print(p.get_name(),":",type(p))
     os.system("clear")

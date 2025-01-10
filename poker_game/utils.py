@@ -349,11 +349,17 @@ def computer_add(lizt:list, str_remaining:list=full_str_deck, remaining_cards:li
 
 def say(msg):
     # print(msg)
-    os.system(f'say --interactive=red "{msg}"')
+    try:
+        os.system(f'say --interactive=red "{msg}"')
+    except:
+        print(msg)
 
 def confirm(statement):
     # print("confirm " + statement)
-    os.system(f'say --interactive=red "confirm {statement}"')
+    try:
+        os.system(f'say --interactive=red "confirm {statement}"')
+    except:
+        pass
     temp = input("press enter:")
 
 def card_list_to_card_names(cards):
