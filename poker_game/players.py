@@ -3,6 +3,9 @@ import time
 from abc import ABC, abstractmethod
 import os
 import pickle
+import hashlib
+import json
+from scipy.special import softmax
 
 from utils import *
 
@@ -18,7 +21,7 @@ class player:
         Additionally, blind() will be called by the table class for both the small and big blinds.
     """
     def __init__(self, name:str, auth):
-        self.hand = (None,None)
+        self.hand = []
         self.money = 0
         self.name = name
         self.auth = self.hash_auth(auth)
@@ -30,11 +33,13 @@ class player:
 
     def hash_auth(self,auth):
         # get the bits of the auth object, and do something with them
-        hashable = str(pickle.dumps(auth))
-        return hash(hashable)
+        hashable = str(auth).encode()
+        sha256 = hashlib.sha256()
+        sha256.update(hashable)
+        return sha256.hexdigest()
 
     @abstractmethod
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = call_amount
@@ -42,15 +47,15 @@ class player:
             bet_amount = self.money
         return bet_amount
     
-    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = 0
         try:
-            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn)
+            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players)
         except Exception as e:
             import traceback
-            print(f"player {self.name} threw an error ({e})! This causes a fold.")
+            say(f"player {self.name} threw an error! This causes a fold.")
             print(traceback.format_exc())
             bet_amount = 0
         print(f"bet amount: {bet_amount}")
@@ -100,6 +105,21 @@ class player:
             return []
         return self.hand
     
+    @abstractmethod
+    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list) -> None:
+        if self.hash_auth(auth) != self.auth:
+            return
+    
+    def get_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list) -> str:
+        # print(auth)
+        if self.hash_auth(auth) != self.auth:
+            return self.name+"invalid hash:"+str(auth)
+        try:
+            self.compute_results(auth, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_names=player_names, player_cards=player_cards)
+            return "successful computation"
+        except Exception as e:
+            return self.name+f" raised an error: {e}"
+    
 
 
 
@@ -109,7 +129,7 @@ class human(player):
         return human(name, auth)
 
     def __get_input(self, call_amount:int):
-        bet_amount = -1
+        bet_amount = call_amount
         def valid_choice():
             if bet_amount >= call_amount or (bet_amount == self.money and bet_amount < call_amount) or bet_amount == 0:
                 return True
@@ -119,38 +139,40 @@ class human(player):
             say(f"To call requires {call_amount}.")
         while True:
             try:
-                say((f"{self.name}, enter bet amount ({call_amount} to call): "))
+                say((f"{self.name} ({call_amount} to call): "))
                 bet_amount = int(input())
             except:
-                bet_amount = np.inf
+                bet_amount = call_amount
             if valid_choice():
                 break
             else:
                 error()
         return bet_amount
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
-        say(f"{self.name} has {self.money} moneys.")
-        say(f"to call requires {call_amount}.")
+        print(f"{self.name} has {self.money} moneys.")
+        print(f"to call requires {call_amount}.")
         bet_amount = self.__get_input(call_amount)
         return bet_amount
     
     def reveal_hand(self, auth):
         if self.hash_auth(auth) != self.auth:
             return []
-        hand = []
-        say(f"enter {self.name}'s cards: ")
-        add_to_list(hand)
-        return hand
+        self.hand = []
+        while len(self.hand) < 2:
+            say(f"enter {self.name}'s cards: ")
+            print(f"current hand: {hand}")
+            add_to_list(hand)
+        return self.hand
 
 class random(player):
     @staticmethod
     def constructor(name, auth):
         return random(name, auth)
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_perc = .7
@@ -161,7 +183,13 @@ class random(player):
         if decision < call_perc:
             amount = min(call_amount, self.money)
         elif decision < call_perc + raise_perc:
-            amount = np.random.randint(call_amount,self.money) if self.money > call_amount else self.money
+            probability_dist = np.arange(call_amount,self.money+1)
+            probability_dist = probability_dist+1
+            probability_dist = probability_dist**2
+            probability_dist = probability_dist[::-1]/np.sum(probability_dist)
+            
+
+            amount = np.random.choice([i for i in range(call_amount,self.money+1)], p=probability_dist) if self.money > call_amount else self.money
         return amount
 
 class raiser(player):
@@ -169,7 +197,7 @@ class raiser(player):
     def constructor(name, auth):
         return raiser(name,auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_multiplier = 1.1
@@ -191,7 +219,7 @@ class tracker(player):
             os.mkdir(self.name+"_tracker")
         for i,name in enumerate(player_names):
             path = os.path.join(self.name+"_tracker", name+".json")
-            dump = {"call_amount":call_amount, "tabled_cards":tuple(tabled_cards), "worth":others_worth[i], "pot":pot, "bid":player_bids[i],}
+            dump = {"call_amount":int(call_amount), "tabled_cards":tuple(tabled_cards), "worth":int(others_worth[i]), "pot":int(pot), "bid":int(player_bids[i])}
             with open(path,'w') as file:
                 json.dump(dump, file)
         
@@ -227,6 +255,16 @@ class bayesian(player):
         return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)
 
 class expector(player):
+    EXPONENT = 2
+
+    def __init__(self, name:str, auth):
+        super().__init__(name,auth)
+        self.prev_full_hand = []
+        self.prev_probs = np.ones(3)/3
+
+
+    
+
     @staticmethod
     def constructor(name, auth):
         return expector(name, auth)
@@ -238,30 +276,13 @@ class expector(player):
         if num_tabled < 3:
             # this is pre-flop, only calculate tabled cards, not opponents cards
             return 0
+        elif num_tabled == 3:
+            return 1
+        elif num_tabled == 4:
+            return min(num_players - 1,2)
         elif num_tabled == 5:
             # this is the final calculation, we should get the most accurate probabilities we can
-            return num_players - 1
-        
-        num_opps = num_players - 1
-
-        num_cores = mp.cpu_count()
-        num_calcs_per_core_per_sec = 50000 # this number is specific to each computer, it will not 
-        max_seconds = 10
-        cutoff = num_calcs_per_core_per_sec * max_seconds * num_cores
-        
-        base_calcs = comb(50-num_tabled, 5-num_tabled)
-        num_total_calcs = base_calcs + sum([comb(45 - 2*i,2) for i in range(num_opps)])
-
-        while num_total_calcs > cutoff:
-            print("cannot calculate all players, dropping one")
-            num_opps -= 1
-            if num_players == 2:
-                # we want to always calculate with at least one opponent 
-                # (at least after the flop)
-                break
-            num_total_calcs = base_calcs + sum([comb(45 - 2*i,2) for i in range(num_opps-1)])
-        
-        return num_opps
+            return min(num_players - 1,2)
 
 
     def __calculate_probs(self, auth, tabled_cards:list, num_players:int):
@@ -269,27 +290,77 @@ class expector(player):
             return 0
         num_opps = self.__num_opps_to_calculate(auth=auth, num_tabled=len(tabled_cards), num_players=num_players)
 
-        return calc_probs_multiple_opps(hand=self.hand, tabled=tabled_cards, num_opps=num_opps)
+
+        curr_full_hand = self.hand + tabled_cards
+        if self.prev_full_hand == curr_full_hand:
+            return self.prev_probs
+        
+        if num_opps > 1 and len(tabled_cards) < 5:
+            say(f"{self.name} calculating")
+        
+        self.prev_full_hand = curr_full_hand
+
+        self.prev_probs = calc_probs_multiple_opps(hand=self.hand, tabled=tabled_cards, num_opps=num_opps)
+
+        if num_opps != num_players - 1:
+            if num_opps > 0:
+                prob_win_against_true_opp_num = (self.prev_probs[0]**((num_players - 1)/num_opps))
+            else:
+                prob_win_against_true_opp_num = (self.prev_probs[0]**(num_players - 1))
+            missing_prob = self.prev_probs[0] - prob_win_against_true_opp_num
+            self.prev_probs[0] = prob_win_against_true_opp_num
+            self.prev_probs[1] += missing_prob
+
+        return self.prev_probs
 
 
-
-
-    
     def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
         probs = self.__calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
-        max_expected_winnings = -np.inf
+        max_expected_winnings = 0.0
         expected_winnings_argmax = 0
-        for i in range(self.money+1):
-            #                   prob of win * amount won       prob loss * amount lost    assuming a two-way tie here, since 3 or more is quite unlikely
-            expected_winnings = probs[0]*(pot + sum(player_bids)) + probs[1]*(-i) + probs[2]*(pot + sum(player_bids) + i)/2
-            if expected_winnings > max_expected_winnings:
-                max_expected_winnings = expected_winnings
-                expected_winnings_argmax = i
+
+        num_betting_rounds_left = 4
+        if len(tabled_cards) == 3:
+            num_betting_rounds_left = 3
+        elif len(tabled_cards) == 4:
+            num_betting_rounds_left = 2
+        elif len(tabled_cards) == 5:
+            num_betting_rounds_left = 1
         
-        return expected_winnings_argmax
+        expected_winnings = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-i) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i)/2 for i in range(call_amount,self.money+1)])
+        expected_winnings_to_the_fourth = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-(i**self.EXPONENT)) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i**self.EXPONENT)/2 for i in range(call_amount,self.money+1)])
+        pos_expected_winnings = expected_winnings_to_the_fourth[expected_winnings>0]
+        if len(pos_expected_winnings) > 0:
+            expected_winnings_argmax = np.argmax(pos_expected_winnings)
+            max_expected_winnings = pos_expected_winnings[expected_winnings_argmax]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)**4}]: {e}") for i,e in enumerate(pos_expected_winnings)]
+            bet_choice_probs = softmax(pos_expected_winnings)
+            choice = call_amount + np.random.choice([i for i in range(len(bet_choice_probs))],p=bet_choice_probs)
+        elif len(expected_winnings) > 0:
+            expected_winnings_argmax = np.argmax(expected_winnings)
+            max_expected_winnings = expected_winnings[expected_winnings_argmax]
+            [print(f"bet: {i+call_amount}, expectation: {e}") for i,e in enumerate(expected_winnings)]
+            choice = 0
+        else:
+            # we have to decide whether to go all in here
+            # because the call amount is more money than we have
+            choice = self.money
+            expected_winnings = probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-choice) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + choice)/2
+            max_expected_winnings = expected_winnings
+            if expected_winnings < 0:
+                # we fold
+                choice = 0 
+        print(f"probs: {probs}")
+        print(f"max expected winnings: {max_expected_winnings}")
+
+        
+            
+        
+        
+        return choice
 
     
     def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
