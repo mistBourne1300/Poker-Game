@@ -2,28 +2,44 @@ from table import table
 from players import expector
 import matplotlib.pyplot as plt
 import numpy as np
+import time
+import datetime
+import os
 
-num_generations = 2
-pop_per_generation = 10
-moneys_per_player = 5
+num_generations = 10
+pop_per_generation = 25
+moneys_per_player = 50
 exponent_range = (1,4)
 
 if __name__ == "__main__":
     retable = table([],[],starting_money=moneys_per_player, say=print)
+    
+    if os.path.exists("exponent_data.npy"):
+        try:
+            exponents_over_time = [dat for dat in np.load("exponent_data.npy")]
+        except:
+            exponents_over_time = []
+    else:
+        exponents_over_time = []
 
-    exponents = np.random.uniform(exponent_range[0], exponent_range[1], size=pop_per_generation)
+    if len(exponents_over_time) > 0:
+        last_pop_exps = exponents_over_time[-1]
+        last_pop_exps_mean = np.mean(last_pop_exps)
+        last_pop_exps_std = np.std(last_pop_exps)
+        exponents = np.random.normal(loc=last_pop_exps_mean, scale=last_pop_exps_std,size=pop_per_generation)
+    else:
+        exponents = np.random.uniform(exponent_range[0], exponent_range[1], size=pop_per_generation)
+    exponents_over_time.append(exponents)
     population = []
     auths = []
     for exp in exponents:
         new_auth = np.random.randint(1000000)
-        new_expector = expector.constructor(f"x{exp}", auth = new_auth)
-        expector.EXPONENT = exp
+        new_expector = expector.constructor(f"x{exp:.3f}", auth = new_auth)
+        new_expector.EXPONENT = exp
         population.append(new_expector)
         auths.append(new_auth)
 
-    
-    exponents_over_time = [exponents]
-    
+    start = time.time()
     for gen in range(num_generations):
         winners = []
         winning_auths = []
@@ -46,8 +62,9 @@ if __name__ == "__main__":
             retable.auths = [x1_auth,x2_auth]
 
             if len(ordering) == 1:
-                retable.players.append(population[ordering.pop()])
-                retable.auths.append(auths[ordering.pop()])
+                idx = ordering.pop()
+                retable.players.append(population[idx])
+                retable.auths.append(auths[idx])
             for player in retable.players:
                 player.money = moneys_per_player
             retable.play_game()
@@ -66,15 +83,22 @@ if __name__ == "__main__":
 
         for exp in np.random.normal(loc=winning_exps_mean, scale=winning_exp_std, size=num_to_repopulate):
             new_auth = np.random.randint(1000000)
-            new_expector = expector(f"x{exp}", new_auth)
-            expector.EXPONENT = exp
+            new_expector = expector(f"x{exp:.3f}", new_auth)
+            new_expector.EXPONENT = exp
             population.append(new_expector)
             auths.append(new_auth)
         
         exponents_over_time.append(np.array([p.EXPONENT for p in population]))
         np.save("exponent_data", np.array(exponents_over_time))
-    exponents_over_time = np.array(exponents_over_time)
+    exponents_over_time = np.load("exponent_data.npy")
     [plt.plot(exponents_over_time[:,i]) for i in range(exponents_over_time.shape[1])]
+    plt.title("exponents over time")
+    plt.xlabel("generation")
+    plt.ylabel("exponents (unordered)")
+    plt.savefig("exponents_over_time.jpg")
+    print(time.time() - start)
+    print("computation time:")
+    print(datetime.timedelta(seconds = time.time() - start))
 
 
 

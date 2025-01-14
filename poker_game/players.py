@@ -340,7 +340,7 @@ class expector(player):
             max_expected_winnings = expected_winnings
             if expected_winnings < 0:
                 # we fold
-                choice = 0 
+                choice = 0
         print(f"probs: {probs}")
         print(f"max expected winnings: {max_expected_winnings}")
 

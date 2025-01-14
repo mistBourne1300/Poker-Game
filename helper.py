@@ -58,7 +58,40 @@ def display_probs_mp(hand):
     fancy_out(f"{your_msg}")
     fancy_out(f"{bar}")
     for i in range(len(probs)-1,-1,-1):
-        fancy_out(f"{num_to_hand[i]:.<16}: {np.round(probs[i],7)}")
+        fancy_out(f"{num_to_hand[i]:.<16}: = {np.round(probs[i],7)}")
+
+
+    choose_52_7 = 133784560
+    prob_royal_flush = 4324/choose_52_7
+    prob_straight_flush = 37260/choose_52_7
+    prob_four_kind = 224848/choose_52_7
+    prob_full_house = 3473184/choose_52_7
+    prob_flush = 4047644/choose_52_7
+    prob_straight = 6180020/choose_52_7
+    prob_three_kind = 6461620/choose_52_7
+    prob_two_pair = 31433400/choose_52_7
+    prob_pair = 58627800/choose_52_7
+    prob_high = 23294460/choose_52_7
+    opp_probs = [prob_high, prob_pair, prob_two_pair, prob_three_kind, prob_straight, prob_flush, prob_full_house, prob_four_kind, prob_straight_flush, prob_royal_flush]
+
+    prob_matrix = np.zeros((10,10))
+    for i,self_prob in enumerate(probs):
+        for ii,opp_prob in enumerate(opp_probs):
+            prob_matrix[i,ii] = self_prob*opp_prob
+    
+    tie_prob = np.sum(np.diag(prob_matrix))
+    win_prob = np.sum(np.tril(prob_matrix)) - tie_prob
+    loss_prob = np.sum(np.triu(prob_matrix)) - tie_prob
+    probs = np.array([win_prob,loss_prob,tie_prob])
+
+
+    win_msg = "Win probability:"
+    loss_msg = "Loss Probability:"
+    tie_msg = "Tie Probability:"
+    print()
+    fancy_out(f"{win_msg: <20}\u2248 {np.round(probs[0],7)}")
+    fancy_out(f"{loss_msg: <20}\u2248 {np.round(probs[1],7)}")
+    fancy_out(f"{tie_msg: <20}\u2248 {np.round(probs[2],7)}")
     print()
 
 def calc_buckets_mp(hand,combos,q:mp.SimpleQueue,offset:int, lock):
@@ -142,16 +175,15 @@ def display_probs_mp_win_loss(hand):
     fancy_out(f"{your_msg: <36}{opp_msg}")
     fancy_out(f"{bar}")
     for i in range(len(self_probs)-1,-1,-1):
-        fancy_out(f"{num_to_hand[i]:.<16}: {np.round(self_probs[i],7):<20}{num_to_hand[i]:.<16}: {np.round(opp_probs[i],7)}")
+        fancy_out(f"{num_to_hand[i]:.<16}: = {np.round(self_probs[i],7):<20}{num_to_hand[i]:.<16}: \u2248 {np.round(opp_probs[i],7)}")
     
     win_msg = "Win probability:"
     loss_msg = "Loss Probability:"
     tie_msg = "Tie Probability:"
-    print("win_loss_taly",win_loss_tally)
     print()
-    fancy_out(f"{win_msg: <20}{np.round(win_probs[0],7)}")
-    fancy_out(f"{loss_msg: <20}{np.round(win_probs[1],7)}")
-    fancy_out(f"{tie_msg: <20}{np.round(win_probs[2],7)}")
+    fancy_out(f"{win_msg: <20}\u2248 {np.round(win_probs[0],7)}")
+    fancy_out(f"{loss_msg: <20}\u2248 {np.round(win_probs[1],7)}")
+    fancy_out(f"{tie_msg: <20}\u2248 {np.round(win_probs[2],7)}")
     print()
 
 def calc_self_and_opp_buckets_and_win_counter_mp(hand,combos,q:mp.SimpleQueue,offset:int,lock):
