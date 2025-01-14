@@ -351,8 +351,8 @@ def computer_add(lizt:list, str_remaining:list=full_str_deck, remaining_cards:li
 
 
 def say(msg):
-    # print(msg)
-    exit_code = os.system(f'say --interactive=red "{msg}"')
+    print(msg)
+    exit_code = os.system(f'say "{msg}"')
     if exit_code > 0:
         raise KeyboardInterrupt("interrupt in utils.say()")
 
