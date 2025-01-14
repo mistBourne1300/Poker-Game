@@ -139,7 +139,10 @@ class human(player):
             say(f"To call requires {call_amount}.")
         while True:
             try:
-                say((f"{self.name} ({call_amount} to call): "))
+                if call_amount > 0:
+                    say((f"{self.name} ({call_amount} to call): "))
+                else:
+                    say((f"{self.name} (enter to check): "))
                 bet_amount = int(input())
             except:
                 bet_amount = call_amount
@@ -163,8 +166,8 @@ class human(player):
         self.hand = []
         while len(self.hand) < 2:
             say(f"enter {self.name}'s cards: ")
-            print(f"current hand: {hand}")
-            add_to_list(hand)
+            print(f"current hand: {[tuple_to_str(c) for c in self.hand]}")
+            add_to_list(self.hand,max_size=2)
         return self.hand
 
 class random(player):
@@ -229,30 +232,15 @@ class tracker(player):
         if self.hash_auth(auth) != self.auth:
             return 0
         # take a minute to finish results
-        for i in range(10,-1,-1):
-            print(i)
-            time.sleep(1)
+        # for i in range(10,-1,-1):
+        #     print(i)
+        #     time.sleep(1)
         for i,name in enumerate(player_names):
             path = os.path.join(self.name+"_tracker", name+".json")
             if not os.path.exists(path):
                 raise RuntimeError(f"tracker {self.name} cannot find file for {name}")
             with open(path,'r') as file:
                 print(self.name+str(json.load(file)))
-
-class bayesian(player):
-    @staticmethod
-    def constructor(name, auth):
-        return bayesian(name, auth)
-    
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
-        if self.hash_auth(auth) != self.auth:
-            return 0
-        return super().make_decision(auth, call_amount, tabled_cards, others_worth, pot, player_bids, player_turn, player_names, folded_players)
-    
-    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
-        if self.hash_auth(auth) != self.auth:
-            return 0
-        return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)
 
 class expector(player):
     EXPONENT = 2
@@ -269,7 +257,7 @@ class expector(player):
     def constructor(name, auth):
         return expector(name, auth)
     
-    def __num_opps_to_calculate(self, auth, num_tabled:int, num_players:int):
+    def num_opps_to_calculate(self, auth, num_tabled:int, num_players:int):
         if self.hash_auth(auth) != self.auth:
             return 0
         
@@ -285,10 +273,10 @@ class expector(player):
             return min(num_players - 1,2)
 
 
-    def __calculate_probs(self, auth, tabled_cards:list, num_players:int):
+    def calculate_probs(self, auth, tabled_cards:list, num_players:int):
         if self.hash_auth(auth) != self.auth:
             return 0
-        num_opps = self.__num_opps_to_calculate(auth=auth, num_tabled=len(tabled_cards), num_players=num_players)
+        num_opps = self.num_opps_to_calculate(auth=auth, num_tabled=len(tabled_cards), num_players=num_players)
 
 
         curr_full_hand = self.hand + tabled_cards
@@ -318,7 +306,7 @@ class expector(player):
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
-        probs = self.__calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
+        probs = self.calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
         max_expected_winnings = 0.0
         expected_winnings_argmax = 0
 
@@ -362,6 +350,21 @@ class expector(player):
         
         return choice
 
+    
+    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)
+
+class bayesian(expector):
+    @staticmethod
+    def constructor(name, auth):
+        return bayesian(name, auth)
+    
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        return super().make_decision(auth, call_amount, tabled_cards, others_worth, pot, player_bids, player_turn, player_names, folded_players)
     
     def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
         if self.hash_auth(auth) != self.auth:

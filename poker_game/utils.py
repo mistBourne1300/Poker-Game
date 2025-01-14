@@ -313,7 +313,10 @@ def add_to_hand(str_remaining=full_str_deck, remaining_cards=full_tuple_deck):
                 hand.append(card)
         return any_added
 
-def add_to_list(lizt, str_remaining=full_str_deck, remaining_cards=full_tuple_deck, max_size=52):
+def add_to_list(lizt, str_remaining=None, remaining_cards=None, max_size=52):
+    if str_remaining is None or remaining_cards is None:
+        str_remaining = [r+s for r in strranks for s in strsuits]
+        remaining_cards = [(r,s) for r in ranks for s in suits]
     next_cards = input("enter next cards: ")
     any_added = False
     for next_card in next_cards.split():
@@ -349,10 +352,9 @@ def computer_add(lizt:list, str_remaining:list=full_str_deck, remaining_cards:li
 
 def say(msg):
     # print(msg)
-    try:
-        os.system(f'say --interactive=red "{msg}"')
-    except:
-        print(msg)
+    exit_code = os.system(f'say --interactive=red "{msg}"')
+    if exit_code > 0:
+        raise KeyboardInterrupt("interrupt in utils.say()")
 
 def confirm(statement):
     # print("confirm " + statement)
