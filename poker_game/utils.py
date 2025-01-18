@@ -357,9 +357,9 @@ def say(msg):
         raise KeyboardInterrupt("interrupt in utils.say()")
 
 def confirm(statement):
-    # print("confirm " + statement)
+    print("confirm" + statement)
     try:
-        os.system(f'say --interactive=red "confirm {statement}"')
+        os.system(f'say "confirm {statement}"')
     except:
         pass
     temp = input("press enter:")
