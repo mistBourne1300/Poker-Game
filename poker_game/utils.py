@@ -7,7 +7,7 @@ from tqdm import tqdm
 from itertools import combinations
 from my_queue import MyQueue
 from math import comb
-MININTERVAL = 0.5
+MININTERVAL = 1.0
 
 ranks = [r for r in range(14,1,-1)]
 suits = [s for s in range(4)]

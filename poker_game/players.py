@@ -55,11 +55,28 @@ class player:
             bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players)
         except Exception as e:
             import traceback
-            say(f"player {self.name} threw an error! This causes a fold.")
+            try:
+                say(f"player {self.name} threw an error! This causes a fold.")
+            except:
+                print(f"player {self.name} threw an error! This causes a fold.")
             print(traceback.format_exc())
             bet_amount = 0
         print(f"bet amount: {bet_amount}")
         print(f"self money: {self.money}")
+
+        max_others_worth = 0
+        for i,worth in enumerate(others_worth):
+            if i == player_turn: continue
+            if worth > max_others_worth:
+                max_others_worth = worth
+        
+        if bet_amount > max_others_worth:
+            bet_amount = max_others_worth
+            try:
+                say(f"player {self.name} bet more than everyone else has. truncating bet to maximum of other's worth")
+            except:
+                print(f"player {self.name} bet more than everyone else has. truncating bet to maximum of other's worth")
+
         if bet_amount > self.money:
             print(f"player {self.name} tried to cheat by betting more than they have. They're all in now!")
             bet_amount = self.money
@@ -243,19 +260,16 @@ class tracker(player):
                 print(self.name+str(json.load(file)))
 
 class expector(player):
-    EXPONENT = 2
-
-    def __init__(self, name:str, auth):
+    def __init__(self, name:str, auth, EXPONENT1=2, EXPONENT2=2):
         super().__init__(name,auth)
         self.prev_full_hand = []
         self.prev_probs = np.ones(3)/3
-
-
-    
+        self.EXPONENT1 = EXPONENT1
+        self.EXPONENT2 = EXPONENT2
 
     @staticmethod
-    def constructor(name, auth):
-        return expector(name, auth)
+    def constructor(name, auth, EXPONENT1=2, EXPONENT2=2):
+        return expector(name, auth, EXPONENT1=EXPONENT1, EXPONENT2=EXPONENT2)
     
     def num_opps_to_calculate(self, auth, num_tabled:int, num_players:int):
         if self.hash_auth(auth) != self.auth:
@@ -284,7 +298,10 @@ class expector(player):
             return self.prev_probs
         
         if num_opps > 1 and len(tabled_cards) < 5:
-            say(f"{self.name} calculating")
+            try:
+                say(f"{self.name} calculating")
+            except:
+                print(f"{self.name} calculating")
         
         self.prev_full_hand = curr_full_hand
 
@@ -318,27 +335,27 @@ class expector(player):
         elif len(tabled_cards) == 5:
             num_betting_rounds_left = 1
         
-        expected_winnings = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-i) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i)/2 for i in range(call_amount,self.money+1)])
-        expected_winnings_to_the_fourth = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-(i**self.EXPONENT)) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i**self.EXPONENT)/2 for i in range(call_amount,self.money+1)])
-        pos_expected_winnings = expected_winnings_to_the_fourth[expected_winnings>0]
+        expected_winnings_exp1 = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-i**self.EXPONENT1) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i**self.EXPONENT1)/2 for i in range(call_amount,self.money+1)])
+        expected_winnings_exp2 = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-(i**self.EXPONENT2)) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i**self.EXPONENT2)/2 for i in range(call_amount,self.money+1)])
+        pos_expected_winnings = expected_winnings_exp2[expected_winnings_exp1>0]
         if len(pos_expected_winnings) > 0:
             expected_winnings_argmax = np.argmax(pos_expected_winnings)
             max_expected_winnings = pos_expected_winnings[expected_winnings_argmax]
-            [print(f"bet: {i+call_amount}, E[{(i+call_amount)**4}]: {e}") for i,e in enumerate(pos_expected_winnings)]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)**self.EXPONENT1}]: {e}") for i,e in enumerate(pos_expected_winnings)]
             bet_choice_probs = softmax(pos_expected_winnings)
             choice = call_amount + np.random.choice([i for i in range(len(bet_choice_probs))],p=bet_choice_probs)
-        elif len(expected_winnings) > 0:
-            expected_winnings_argmax = np.argmax(expected_winnings)
-            max_expected_winnings = expected_winnings[expected_winnings_argmax]
-            [print(f"bet: {i+call_amount}, expectation: {e}") for i,e in enumerate(expected_winnings)]
+        elif len(expected_winnings_exp1) > 0:
+            expected_winnings_argmax = np.argmax(expected_winnings_exp1)
+            max_expected_winnings = expected_winnings_exp1[expected_winnings_argmax]
+            [print(f"bet: {i+call_amount}, expectation: {e}") for i,e in enumerate(expected_winnings_exp1)]
             choice = 0
         else:
             # we have to decide whether to go all in here
             # because the call amount is more money than we have
             choice = self.money
-            expected_winnings = probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-choice) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + choice)/2
-            max_expected_winnings = expected_winnings
-            if expected_winnings < 0:
+            expected_winnings_exp1 = probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-choice) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + choice)/2
+            max_expected_winnings = expected_winnings_exp1
+            if expected_winnings_exp1 < 0:
                 # we fold
                 choice = 0
         print(f"probs: {probs}")
