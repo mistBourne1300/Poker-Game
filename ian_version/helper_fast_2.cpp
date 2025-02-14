@@ -34,10 +34,13 @@ int main(const int argc, const char* argv[]) {
   vector<vector<Card>> combinations;
   cout << "Generating all possible hands..." << endl;
 	generate_combinations(7, combinations, cardsInPlay,  {});
-  bool test = true;
+  const int NUM_COMBOS = combinations.size();
+  static int curr_iter = 0;
+  static bool test = true;
   #pragma omp parallel for
   for (auto combo : combinations) {
       if (test) {cout << "Calculating win probabilities using " << omp_get_num_threads() << " threads..." << endl; test = false;}
+      cout << ((++curr_iter)*100)/NUM_COMBOS << "% complete\r";
 	    vector<Card> table;
 	    for (int i = 2; i < 7; ++i) { table.push_back(combo.at(i)); }
 	    vector<Card> myHand;
@@ -61,6 +64,7 @@ int main(const int argc, const char* argv[]) {
   // }); // goes with for_each loop
   } //goes with normal for loop
     // for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; } // uncomment to see exact bucket values
+    cout << "            \n";
     int total_hands = 0;
     for (int i = 0; i < 10; i++) { total_hands += buckets[i]; }
     for (int i = 9; i > -1; i--) {
