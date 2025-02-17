@@ -7,6 +7,7 @@
 #include <cmath>
 #include <thread>
 #include <omp.h>
+#include <iomanip>
 
 #include "Cards.h"
 // #include <bits/locale_conv.h>
@@ -36,7 +37,7 @@ int main(const int argc, const char* argv[]) {
 	generate_combinations(7, combinations, cardsInPlay,  {});
   const int NUM_COMBOS = combinations.size();
   static int curr_iter = 0;
-  static int benchmark = 0;
+  static float benchmark = 0;
   #pragma omp parallel
   {
     if (omp_get_thread_num() == 0) cout << "Calculating win probabilities using " << omp_get_num_threads() << " threads..." << endl;
@@ -65,10 +66,10 @@ int main(const int argc, const char* argv[]) {
         ++curr_iter;
         #pragma omp critical
         {
-          cout << benchmark << "% complete\r";
-          if ((curr_iter * 100)/NUM_COMBOS >= benchmark) {
-            // cout << benchmark << "% complete\r";
-            benchmark += 5;
+          // cout << benchmark << "% complete\r";
+          if ((curr_iter * 1000)/NUM_COMBOS/10.0 >= benchmark) {
+            cout << flush << setprecision(1) << fixed << benchmark << "% complete\r";
+            benchmark += .1;
           }
         }
       } // for loop
