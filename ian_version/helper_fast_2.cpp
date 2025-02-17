@@ -36,35 +36,45 @@ int main(const int argc, const char* argv[]) {
 	generate_combinations(7, combinations, cardsInPlay,  {});
   const int NUM_COMBOS = combinations.size();
   static int curr_iter = 0;
-  static bool test = true;
-  #pragma omp parallel for
-  for (auto combo : combinations) {
-      if (test) {cout << "Calculating win probabilities using " << omp_get_num_threads() << " threads..." << endl; test = false;}
-      cout << ((++curr_iter)*100)/NUM_COMBOS << "% complete\r";
-	    vector<Card> table;
-	    for (int i = 2; i < 7; ++i) { table.push_back(combo.at(i)); }
-	    vector<Card> myHand;
-	    for (int i = 0; i < 2; ++i) { myHand.push_back(combo.at(i)); }
-	    vector<Card> myCards;
-	    for (int i = 0; i < 7; ++i) { myCards.push_back(combo.at(i)); }
-	    Hand myBestHand = find_best_hand(myCards);
-        buckets[myBestHand.getType() - 1]++;
+  static int benchmark = 0;
+  #pragma omp parallel
+  {
+    if (omp_get_thread_num() == 0) cout << "Calculating win probabilities using " << omp_get_num_threads() << " threads..." << endl;
+    #pragma omp for
+    for (auto combo : combinations) {
+  	    vector<Card> table;
+  	    for (int i = 2; i < 7; ++i) { table.push_back(combo.at(i)); }
+  	    vector<Card> myHand;
+  	    for (int i = 0; i < 2; ++i) { myHand.push_back(combo.at(i)); }
+  	    vector<Card> myCards;
+  	    for (int i = 0; i < 7; ++i) { myCards.push_back(combo.at(i)); }
+  	    Hand myBestHand = find_best_hand(myCards);
+          buckets[myBestHand.getType() - 1]++;
 
-	    // Do opponent calculations
-	    int num_players_temp = min(num_players, 2); // temporarily cap number of opponents to 1 until I get that case working
-	    for (int playerNum = 1; playerNum < num_players_temp; ++playerNum) {
-	        vector<vector<Card>> oppCombos;
-	        generate_combinations(7, oppCombos, table, myHand);
-	        for (vector<Card> oppCombo : oppCombos) {
-	            Hand oppBestHand = find_best_hand(oppCombo);
-	            if (oppBestHand < myBestHand) { ++winTally[0]; }
-	            ++winTally[1];
-	        }
-	    }
-  // }); // goes with for_each loop
-  } //goes with normal for loop
+  	    // Do opponent calculations
+  	    int num_players_temp = min(num_players, 2); // temporarily cap number of opponents to 1 until I get that case working
+  	    for (int playerNum = 1; playerNum < num_players_temp; ++playerNum) {
+  	        vector<vector<Card>> oppCombos;
+  	        generate_combinations(7, oppCombos, table, myHand);
+  	        for (vector<Card> oppCombo : oppCombos) {
+  	            Hand oppBestHand = find_best_hand(oppCombo);
+  	            if (oppBestHand < myBestHand) { ++winTally[0]; }
+  	            ++winTally[1];
+  	        }
+  	    }
+        ++curr_iter;
+        #pragma omp critical
+        {
+          cout << benchmark << "% complete\r";
+          if ((curr_iter * 100)/NUM_COMBOS >= benchmark) {
+            // cout << benchmark << "% complete\r";
+            benchmark += 5;
+          }
+        }
+      } // for loop
+    } // parallel block
     // for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; } // uncomment to see exact bucket values
-    cout << "            \n";
+    cout << "------------          " << endl;
     int total_hands = 0;
     for (int i = 0; i < 10; i++) { total_hands += buckets[i]; }
     for (int i = 9; i > -1; i--) {
