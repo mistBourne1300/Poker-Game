@@ -63,11 +63,10 @@ int main(const int argc, const char* argv[]) {
   	            ++winTally[1];
   	        }
   	    }
-        ++curr_iter;
         #pragma omp critical
         {
           // cout << benchmark << "% complete\r";
-          if ((curr_iter * 1000)/NUM_COMBOS/10.0 >= benchmark) {
+          if ((++curr_iter * 1000)/NUM_COMBOS/10.0 >= benchmark) {
             cout << flush << setprecision(1) << fixed << benchmark << "% complete\r";
             benchmark += .1;
           }
