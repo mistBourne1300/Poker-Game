@@ -1,11 +1,12 @@
 #ifndef CARDS_H
 #define CARDS_H
 
-// #include <iostream> // TODO: delete this line when done with testing
+#include <iostream> // TODO: delete this line when done with testing
 #include <string>
 #include <sstream>
 #include <vector>
 #include <exception>
+#include <random>
 
 using namespace std;
 
@@ -89,7 +90,7 @@ class Card {
         default:
           stringstream ee;
           ee << "Invalid card rank: " << rank;
-          throw ee.str();
+          throw invalid_argument(ee.str());
       }
       switch (suit) {
         case SPADES: ss << "s"; break;
@@ -99,7 +100,7 @@ class Card {
         default:
           stringstream ee;
           ee << "Invalid card suit: " << suit;
-          throw ee.str();
+          throw invalid_argument(ee.str());
       }
       ss << "]";
       return ss.str();
@@ -188,40 +189,39 @@ class Hand {
 
 };
 
-// class Deck {
-//     private:
-//     vector<Card*> cards;
-//     int next_deal = 0;
+class Deck {
+   private:
+     Card* cards[52];
+     int next_deal = 0;
+  public:
+     Deck() {
+       int i = 0;
+       for (int suit = 1; suit < 5; suit++) {
+         for (int rank = 2; rank < 15; rank++) {
+           cards[i++] = (new Card(rank, suit));
+         }
+       }
+     }
+    ~Deck() {
+      for (int i = 0; i < 52; ++i) {
+        delete cards[i];
+        cards[i] = nullptr;
+      }
+    }
+    Card* deal() {
+      if (next_deal < 52) { return cards[next_deal++]; }
+      else { throw length_error("Can't deal; the deck has no cards left!"); }
+    }
 
-//     public:
-//       Deck() {
-//         for (int suit = 0; suit < 4; suit++) {
-//           for (int rank = 2; rank < 14; rank++) {
-//             cards.push_back(new Card(rank, suit));
-//           }
-//         }
-//       }
-//       ~Deck() {
-//         for (int i = 0; i < 52; i++) {
-//           delete cards[i];
-//           cards[i] = nullptr;
-//         }
-//       }
-
-//       Card* deal() {
-//         return cards.at(next_deal++);
-//         // FIXME: add error checking in case there are no cards left
-//       }
-
-//       void shuffle() {
-//         next_deal = 0;
-//         random_device rd;
-//         mt19937 gen(rd());
-//         for (int i = 0; i < 51; i++) {
-//           uniform_int_distribution<> dis(i, 52);
-//           swap(cards[i],cards[dis(gen)]);
-//          }
-//       }
-// };
+    void shuffle() {
+      next_deal = 0;
+      random_device rd;
+      mt19937 gen(rd());
+      for (int i = 0; i < 51; i++) {
+        uniform_int_distribution<> dis(i, 51);
+        swap(cards[i],cards[dis(gen)]);
+      }
+    }
+};
 
 #endif
