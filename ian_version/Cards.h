@@ -196,8 +196,8 @@ class Deck {
   public:
      Deck() {
        int i = 0;
-       for (int suit = 1; suit < 5; suit++) {
-         for (int rank = 2; rank < 15; rank++) {
+       for (int suit = DIAMONDS; suit <= SPADES; suit++) {
+         for (int rank = TWO; rank <= ACE; rank++) {
            cards[i++] = (new Card(rank, suit));
          }
        }
@@ -205,7 +205,6 @@ class Deck {
     ~Deck() {
       for (int i = 0; i < 52; ++i) {
         delete cards[i];
-        cards[i] = nullptr;
       }
     }
     Card* deal() {
