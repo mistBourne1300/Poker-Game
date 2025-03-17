@@ -5,7 +5,7 @@ import multiprocessing as mp
 import os
 import argparse
 
-import players
+from players import *
 from utils import *
 from enum import Enum
 
@@ -37,9 +37,10 @@ class table:
             self.auths.append(auth)
             new_player = constructor(player_names[i],auth)
             new_player.add_money(auth, starting_money)
-            if isinstance(new_player, players.human):
+            if isinstance(new_player, human):
                 self.MODE = mode.HYBRID_PLAY
             self.players.append(new_player)
+        self.prev_raise_idx = 0
     
     def initiate_blinds(self, dealer_idx):
         current_bids = [0]*len(self.players)
@@ -81,6 +82,7 @@ class table:
         current_raise = self.big_blind
         last_raise_idx = (dealer_idx+2)%len(self.players)
         big_blind_idx = last_raise_idx
+        self.prev_raise_idx = (dealer_idx+1)%len(self.players)
         current_player_idx = (dealer_idx+3)%len(self.players)
         folded_players = [False]*len(self.players)
         pot = 0
@@ -96,7 +98,7 @@ class table:
             current_player = self.players[current_player_idx]
             call_amount = current_raise - current_bids[current_player_idx]
             others_worth = [player.worth() for player in self.players]
-            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players)
+            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx = self.prev_raise_idx)
             
             if player_bid < call_amount:
                 if current_player.worth() > 0:
@@ -108,6 +110,7 @@ class table:
                     current_bids[current_player_idx] += player_bid
             elif player_bid > call_amount:
                 current_bids[current_player_idx] += player_bid
+                self.prev_raise_idx = last_raise_idx
                 last_raise_idx = current_player_idx
                 current_raise = current_bids[current_player_idx]
                 self.say(f"{current_player.get_name()} raises. bid is now {current_raise}")
@@ -120,7 +123,7 @@ class table:
             if current_player.worth() == 0:
                 player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
                 self.say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
-            if (not isinstance(current_player, players.human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
+            if (not isinstance(current_player, human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
                 utils.confirm("")
             current_player_idx = (current_player_idx+1)%len(self.players)
             # if self.v: print(f"\nround {roundabout}:")
@@ -138,7 +141,7 @@ class table:
         big_blind_player = self.players[big_blind_idx]
         call_amount = current_raise - current_bids[big_blind_idx]
         others_worth = [player.worth() for player in self.players]
-        player_bid = big_blind_player.decide(auth=big_blind_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players)
+        player_bid = big_blind_player.decide(auth=big_blind_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx)
         if player_bid < call_amount:
             if big_blind_player.worth() > 0:
                 folded_players[big_blind_idx] = True
@@ -147,6 +150,7 @@ class table:
                 current_bids[big_blind_idx] += player_bid
         elif player_bid > call_amount:
             current_bids[current_player_idx] += player_bid
+            self.prev_raise_idx = last_raise_idx
             last_raise_idx = big_blind_idx
             current_raise = current_bids[big_blind_idx]
             self.say(f"{big_blind_player.get_name()} raises. bid is now {current_raise}")
@@ -159,7 +163,7 @@ class table:
         if big_blind_player.worth() == 0:
             player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
             self.say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
-        if (not isinstance(big_blind_player, players.human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
+        if (not isinstance(big_blind_player, human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
             utils.confirm("")
         
         current_player_idx = (big_blind_idx+1)%len(self.players)
@@ -183,7 +187,7 @@ class table:
                 current_player = self.players[current_player_idx]
                 call_amount = current_raise - current_bids[current_player_idx]
                 others_worth = [player.worth() for player in self.players]
-                player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players)
+                player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx)
                 
                 if player_bid < call_amount:
                     if current_player.worth() > 0:
@@ -195,6 +199,7 @@ class table:
                         current_bids[current_player_idx] += player_bid
                 elif player_bid > call_amount:
                     current_bids[current_player_idx] += player_bid
+                    self.prev_raise_idx = last_raise_idx
                     last_raise_idx = current_player_idx
                     current_raise = current_bids[current_player_idx]
                     self.say(f"{current_player.get_name()} raises. bid is now {current_raise}")
@@ -207,7 +212,7 @@ class table:
                 if current_player.worth() == 0:
                     player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
                     self.say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
-                if (not isinstance(current_player, players.human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
+                if (not isinstance(current_player, human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
                     utils.confirm("")
                 current_player_idx = (current_player_idx+1)%len(self.players)
                 # if self.v: print(f"\nround {roundabout}:")
@@ -222,17 +227,19 @@ class table:
             
         
         pot = sum(current_bids)
-        return pot, folded_players, player_max_earnings, last_raise_idx
+        return pot, folded_players, player_max_earnings, last_raise_idx, big_blind_idx
   
-    def post_flop_bet(self, pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx):
+    def post_flop_bet(self, pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx, big_blind_idx):
         current_raise = 0
         current_bids = [0]*len(self.players)
         current_player_idx = (last_raise_idx)%len(self.players)
         last_raise_idx = current_player_idx
+        current_player_idx = (big_blind_idx+1)%len(self.players)
         roundabout = 0
         do = True
         while (current_player_idx != last_raise_idx or do):
-            do = False
+            if current_player_idx == big_blind_idx:
+                do = False
             if folded_players[current_player_idx] or player_max_earnings[current_player_idx] < np.inf:
                 # the player has either folded, or has gone all in. In either case, we continue to the next player
                 if self.v: print(f"{self.players[current_player_idx].get_name()} cannot bet. skipping")
@@ -245,7 +252,7 @@ class table:
             current_player = self.players[current_player_idx]
             call_amount = current_raise - current_bids[current_player_idx]
             others_worth = [player.worth() for player in self.players]
-            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players)
+            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx)
             
             if player_bid < call_amount:
                 if current_player.worth() > 0:
@@ -257,6 +264,7 @@ class table:
                     current_bids[current_player_idx] += player_bid
             elif player_bid > call_amount:
                 current_bids[current_player_idx] += player_bid
+                self.prev_raise_idx = last_raise_idx
                 last_raise_idx = current_player_idx
                 current_raise = current_bids[current_player_idx]
                 self.say(f"{current_player.get_name()} raises. bid is now {current_raise}")
@@ -269,7 +277,7 @@ class table:
             if current_player.worth() == 0:
                 player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*len(self.players)
                 self.say(f"{current_player.get_name()} goes all in. their maximum earning potential is {player_max_earnings[current_player_idx]}")
-            if (not isinstance(current_player, players.human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
+            if (not isinstance(current_player, human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:
                 utils.confirm("")
             current_player_idx = (current_player_idx+1)%len(self.players)
             # if self.v: print(f"\nround {roundabout}:")
@@ -451,7 +459,7 @@ class table:
 
 
             for i,player in enumerate(self.players):
-                if not isinstance(player,players.human):
+                if not isinstance(player, human):
                     cards = []
                     if self.MODE == mode.HYBRID_PLAY:
                         if self.first_round:
@@ -470,7 +478,7 @@ class table:
 
             # TODO: if everybody but one folded, end the round before moving to the next phase
 
-            pot, folded_players, player_max_earnings, last_raise_idx = self.pre_flop_bet(dealer_idx)
+            pot, folded_players, player_max_earnings, last_raise_idx, big_blind_idx = self.pre_flop_bet(dealer_idx)
             self.say(f"pot is now {pot}")
 
             if sum(folded_players) >= len(self.players)-1:
@@ -487,7 +495,7 @@ class table:
                     self.say(f"{self.players[dealer_idx].get_name()} deals the flop.")
                     utils.computer_add(tabled_cards, str_remaining=str_remaining, remaining_cards=remaining_deck, max_size=3)
             if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) > 1:
-                pot, folded_players, player_max_earnings, last_raise_idx = self.post_flop_bet(pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx)
+                pot, folded_players, player_max_earnings, last_raise_idx = self.post_flop_bet(pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx, big_blind_idx)
                 self.say(f"pot is now {pot}")
             if sum(folded_players) >= len(self.players)-1:
                 self.say("all players have folded. distributing wealth")
@@ -503,7 +511,7 @@ class table:
                     self.say(f"{self.players[dealer_idx].get_name()} deals the turn.")
                     utils.computer_add(tabled_cards, str_remaining=str_remaining, remaining_cards=remaining_deck, max_size=4)
             if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) > 1:
-                pot, folded_players, player_max_earnings, last_raise_idx = self.post_flop_bet(pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx)
+                pot, folded_players, player_max_earnings, last_raise_idx = self.post_flop_bet(pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx, big_blind_idx)
                 self.say(f"pot is now {pot}")
             if sum(folded_players) >= len(self.players)-1:
                 self.say("all players have folded. distributing wealth")
@@ -519,7 +527,7 @@ class table:
                     self.say(f"{self.players[dealer_idx].get_name()} deals the river.")
                     utils.computer_add(tabled_cards, str_remaining=str_remaining, remaining_cards=remaining_deck, max_size=5)
             if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) > 1:
-                pot, folded_players, player_max_earnings, _ = self.post_flop_bet(pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx)
+                pot, folded_players, player_max_earnings, _ = self.post_flop_bet(pot, folded_players, player_max_earnings, tabled_cards, last_raise_idx, big_blind_idx)
                 self.say(f"pot is now {pot}")
             if sum(folded_players) >= len(self.players)-1:
                 self.say("all players have folded. distributing wealth")
@@ -566,8 +574,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("num_players",help="the number of players")
-    parser.add_argument("--player-names",nargs="*",help="player names. if not enough are specified, will prompt for more")
-    parser.add_argument("--player-classes",nargs="*", help="the corresponding player classes. if not enough are specified, or if a player subclass cannot be found with the specified name, will prompt for more")
+    parser.add_argument("--names",nargs="*",help="player names. if not enough are specified, will prompt for more")
+    parser.add_argument("--classes",nargs="*", help="the corresponding player classes. if not enough are specified, or if a player subclass cannot be found with the specified name, will prompt for more")
     parser.add_argument("--force-speak",action="store_true",default=False)
     parser.add_argument("--small-blind",default="1")
     parser.add_argument("--big-blind",default="2")
@@ -586,14 +594,14 @@ if __name__ == "__main__":
                 yield c
                 for subclass in get_subclasses(c):
                     yield subclass
-        return [players.player] + [subclass for subclass in get_subclasses(players.player)]
+        return [player] + [subclass for subclass in get_subclasses(player)]
     
     all_players = [] # list of the player names along with their constructors
 
-    if args.player_names is not None and args.player_classes is not None:
-        for i in range(min(len(args.player_names),len(args.player_classes))):
-            current_name = args.player_names[i]
-            current_class = args.player_classes[i]
+    if args.names is not None and args.classes is not None:
+        for i in range(min(len(args.names),len(args.classes))):
+            current_name = args.names[i]
+            current_class = args.classes[i]
             for subclass in get_player_subclasses():
                 if current_class == subclass.__name__:
                     all_players.append((subclass, current_name))
@@ -620,7 +628,7 @@ if __name__ == "__main__":
             print(f"failed to find subclass {current_class}. try again")
             print()
     sayfunc = None
-    if args.force_speak:
+    if args.force_speak or args.force_hybrid:
         sayfunc = utils.say
     else:
         has_human = False

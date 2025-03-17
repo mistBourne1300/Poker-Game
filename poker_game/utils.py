@@ -357,7 +357,7 @@ def say(msg):
         raise KeyboardInterrupt("interrupt in utils.say()")
 
 def confirm(statement):
-    print("confirm" + statement)
+    print("confirm " + statement)
     try:
         os.system(f'say "confirm {statement}"')
     except:
@@ -409,9 +409,6 @@ def card_list_to_card_names(cards):
     return nruter
 
 
-# TODO: add multiprocesssing capabilities into the recursive function
-# check whether it's the parent process. 
-# if it is, create children processes and multiprocess from there
 def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
     # create the deck of cards
     deck, _, _, _, _ = create_deck()
@@ -456,28 +453,24 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
             processes.append(p)
 
 
-# mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list, num_opps:int, q:mp.Queue, offset:int, lock):
 
-    # simple check to see if any processsees are still running
-    # def processes_going(processes=processes):
-    #     for p in processes:
-    #         if p.is_alive():
-    #             return True
-    #     return False
     
     # if we have no opponents, we will simply get our personal hand tallies
     # otherwise, the final recursive call handles the win/loss logic and returns
     # a 0 for a win, 1 for a loss, and 2 for a tie
-    if num_opps == 0:
-        tally = np.zeros(10)
-    else:
-        tally = np.zeros(3)
+    # if num_opps == 0:
+    #     tally = np.zeros(10)
+    # else:
+    #     tally = np.zeros(3)
 
-    # while the processes are still going, we need to pull things out of the queue
-    # in order to not max it out
-    # while processes_going():
-    #     while q.qsize() > 100:
-    #         tally[q.get()] += 1
+
+    # create three tallies
+    # one to hold self hand information
+    # one to hold the opp hand information
+    # one to hold the win/loss tally information
+    self_tally = np.zeros(10)
+    opp_tally = np.zeros(10)
+    wl_tally = np.zeros(3)
     
     # double check all processes are finished
     for p in processes:
@@ -485,14 +478,20 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
     
     # empty the queue
     while not q.empty():
-        tally = tally + q.get()
+        st, ot, wlt = q.get()
+        self_tally += st
+        opp_tally += ot
+        wl_tally += wlt
     
-    print()
     # get probabilities from tally
-    print("tally", tally)
-    probs = tally/np.sum(tally)
+    self_hand_probs = self_tally/np.sum(self_tally)
+    opp_hand_probs = opp_tally
+    wl_probs = wl_tally
+    if num_opps != 0:
+        opp_hand_probs = opp_hand_probs/np.sum(opp_tally)
+        wl_probs = wl_probs/np.sum(wl_tally)
 
-    if len(probs) > 3:
+    else:
         # we don't have a win/loss tally, we have a hand tally
         # the following calculations aren't exactly accurate, 
         # but the probabilities don't change all that much, 
@@ -508,20 +507,21 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
         prob_two_pair = 31433400/choose_52_7
         prob_pair = 58627800/choose_52_7
         prob_high = 23294460/choose_52_7
-        opp_probs = [prob_high, prob_pair, prob_two_pair, prob_three_kind, prob_straight, prob_flush, prob_full_house, prob_four_kind, prob_straight_flush, prob_royal_flush]
+        opp_hand_probs = [prob_high, prob_pair, prob_two_pair, prob_three_kind, prob_straight, prob_flush, prob_full_house, prob_four_kind, prob_straight_flush, prob_royal_flush]
 
         prob_matrix = np.zeros((10,10))
-        for i,self_prob in enumerate(probs):
-            for ii,opp_prob in enumerate(opp_probs):
+        for i,self_prob in enumerate(self_hand_probs):
+            for ii,opp_prob in enumerate(opp_hand_probs):
                 prob_matrix[i,ii] = self_prob*opp_prob
         
         tie_prob = np.sum(np.diag(prob_matrix))
         win_prob = np.sum(np.tril(prob_matrix)) - tie_prob
         loss_prob = np.sum(np.triu(prob_matrix)) - tie_prob
-        probs = np.array([win_prob,loss_prob,tie_prob])
+        wl_probs = np.array([win_prob,loss_prob,tie_prob])
 
+    print()
+    return self_hand_probs,opp_hand_probs,wl_probs
 
-    return probs
 
 def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_opps:list, q:mp.Queue,  offset:int, lock):
     # start tqdm progress bar
@@ -531,10 +531,9 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
     start = time.time()
     old = 0
 
-    if num_opps == 0:
-        tally = np.zeros(10)
-    else:
-        tally = np.zeros(3)
+    self_tally = np.zeros(10)
+    opp_tally = np.zeros(10)
+    wl_tally = np.zeros(3)
 
 
     for i,c in enumerate(future_table):
@@ -549,10 +548,11 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
         # the full cards on the table
         full_tabled = tabled + c
 
-        # cards we personally have acces to (2 in hand + 5 on table)
+        # cards we personally have access to (2 in hand + 5 on table)
         selfhand = hand + full_tabled
         # get our personal result, which is passed down the recursive levels so we can compare it to the opps results
         selfres = calc_best_hand(selfhand)
+        self_tally[selfres[0]] += 1
         if num_opps > 0:
             # we have opponent hands to calculate
 
@@ -560,21 +560,19 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
             for card in c:
                 deck.remove(card)
             # begin recursively calculating opponent hands
-            tally = tally + recurse_opp_hand_calc(selfres, full_tabled, [], deck, num_opps, pbar=pbar, lock=lock)
+            ot, wlt = recurse_opp_hand_calc(selfres, full_tabled, [], deck, num_opps, pbar=pbar, lock=lock)
+            opp_tally += ot
+            wl_tally += wlt
 
             # add cards back into deck
             for card in c:
                 deck.append(card)
-        else:
-            # no opponents to calculate against, so we simply return our hand index
-            # (0 for high card, 9 for royal flush)
-            tally[selfres[0]] += 1
 
     # close tqdm bar
     lock.acquire()
     pbar.close()
     lock.release()
-    q.put(tally)
+    q.put((self_tally,opp_tally,wl_tally))
 
 def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list, num_opps:int, q:mp.Queue, offset:int, lock):
     lock.acquire()
@@ -583,7 +581,10 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
     start = time.time()
     old = 0
 
-    tally = np.zeros(3)
+    self_tally = np.zeros(10)
+    self_tally[selfres[0]] = 1
+    opp_tally = np.zeros(10)
+    wl_tally = np.zeros(3)
 
     opp_reses = []
 
@@ -598,19 +599,22 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
         
         opphand = tabled+list(c)
         oppres = calc_best_hand(opphand)
+        opp_tally[oppres[0]] += 1
         if num_opps == 1:
             if selfres > oppres:
-                tally[0] += 1
+                wl_tally[0] += 1
             elif oppres > selfres:
-                tally[1] += 1
+                wl_tally[1] += 1
             else:
-                tally[2] += 1
+                wl_tally[2] += 1
         else:
             opp_reses.append(oppres)
             for card in c:
                 deck.remove(card)
             
-            tally = tally + recurse_opp_hand_calc(selfres=selfres, full_tabled=tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps, pbar=pbar, lock=lock)
+            ot,wlt = recurse_opp_hand_calc(selfres=selfres, full_tabled=tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps, pbar=pbar, lock=lock)
+            opp_tally += ot
+            wl_tally += wlt
 
             for card in c:
                 deck.append(card)
@@ -618,7 +622,7 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
     lock.acquire()
     pbar.close()
     lock.release()
-    q.put(tally)
+    q.put((self_tally,opp_tally,wl_tally))
     
 
 def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:list, num_opps:int, pbar=None, lock=None):
@@ -627,7 +631,9 @@ def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:
 
     start = time.time()
 
-    tally = np.zeros(3)
+    opp_tally = np.zeros(10)
+    wl_tally = np.zeros(3)
+
 
     for i,c in enumerate(combos): # get all combinations of 2 cards from the remaining deck
 
@@ -643,6 +649,7 @@ def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:
         
         # append oppres to the list of opponent results
         opp_reses.append(oppres)
+        opp_tally[oppres[0]] += 1
         # print(len(opp_reses))
         if len(opp_reses) == num_opps:
             # we have reached the bottom of the recursion, we need to calculate a win/loss tally and push that onto the queue
@@ -653,77 +660,24 @@ def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:
             opp_winner = max(opp_reses)
 
             if selfres > opp_winner: # we beat the best opponent
-                tally[0] += 1
+                wl_tally[0] += 1
             elif selfres < opp_winner: # we lose to the best opponent
-                tally[1] += 1
+                wl_tally[1] += 1
             else: # we tied the best opponent
-                tally[2] += 1
+                wl_tally[2] += 1
         else:
             # remove used cards from deck
             for card in c:
                 deck.remove(card)
             
             # go down another level of recursion to get the next opponent's hand
-            tally = tally + recurse_opp_hand_calc(selfres, full_tabled, opp_reses, deck, num_opps)
+            ot,wlt = recurse_opp_hand_calc(selfres=selfres, full_tabled=full_tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps)
+            opp_tally += ot
+            wl_tally += wlt
 
             # add cards back into deck
             for card in c:
                 deck.append(card)
         opp_reses.pop()
-    return tally
+    return opp_tally, wl_tally
 
-
-# memoized
-# def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_hands:list, deck:list, num_opps:int, pbar=None, lock=None, all_opps_hands=None):
-
-#     combos = list(combinations(deck,2))
-
-#     start = time.time()
-
-#     tally = np.zeros(3)
-
-#     if all_opps_hands is None:
-#         all_opps_hands = set()
-
-#     update_tqdm = pbar is not None and lock is not None
-
-
-#     for i,combo in enumerate(combos): # get all combinations of 2 cards from the remaining deck
-
-#         if update_tqdm and time.time() - start > MININTERVAL:
-#             lock.acquire()
-#             pbar.set_description(f"{len(all_opps_hands)}")
-#             lock.release()
-#             start = time.time()
-
-#         opp_hands.append(combo)
-#         if len(opp_hands) == num_opps:
-#             # memoize opphands
-#             opp_hands_copy = opp_hands.copy()
-#             opp_hands_copy.sort()
-#             opp_hands_copy = tuple(opp_hands_copy)
-#             if opp_hands_copy not in all_opps_hands:
-#                 # add these opp hands to the memoization set
-#                 all_opps_hands.add(opp_hands_copy)
-#                 # get the best opponent
-#                 opp_winner = max(calc_best_hand(full_tabled + list(pos_opp_hand)) for pos_opp_hand in opp_hands)
-
-#                 if selfres > opp_winner: # we beat the best opponent
-#                     tally[0] += 1
-#                 elif selfres < opp_winner: # we lose to the best opponent
-#                     tally[1] += 1
-#                 else: # we tied the best opponent
-#                     tally[2] += 1
-#         else:
-#             # remove used cards from deck
-#             for card in combo:
-#                 deck.remove(card)
-            
-#             # go down another level of recursion to get the next opponent's hand
-#             tally = tally + recurse_opp_hand_calc(selfres, full_tabled, opp_hands, deck, num_opps, all_opps_hands=all_opps_hands)
-
-#             # add cards back into deck
-#             for card in combo:
-#                 deck.append(card)
-#         opp_hands.pop()
-#     return tally

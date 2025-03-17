@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <thread>
+#include <omp.h>
 
 #include "Cards.h"
 // #include <bits/locale_conv.h>
@@ -25,15 +26,18 @@ vector<Card> find_straight(vector<Card> hand);
 void kind_sort(vector<Card> &hand);
 
 int main(const int argc, const char* argv[]) {
-    int buckets[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    int winTally[2] = {0,0};
-    vector<Card> cardsInPlay;
-    const int num_players = stoi(argv[1]);
-    for (int i = 2; i < argc; i++) { cardsInPlay.push_back(Card(argv[i])); }
-    vector<vector<Card>> combinations;
+  int buckets[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int winTally[2] = {0,0};
+  vector<Card> cardsInPlay;
+  const int num_players = stoi(argv[1]);
+  for (int i = 2; i < argc; i++) { cardsInPlay.push_back(Card(argv[i])); }
+  vector<vector<Card>> combinations;
+  cout << "Generating all possible hands..." << endl;
 	generate_combinations(7, combinations, cardsInPlay,  {});
-	for_each(execution::par, combinations.begin(), combinations.end(), [&num_players,&buckets,&winTally](vector<Card> &combo) {
-	    // cout << "Thread ID: " << this_thread::get_id() << endl;
+  bool test = true;
+  #pragma omp parallel for
+  for (auto combo : combinations) {
+      if (test) {cout << "Calculating win probabilities using " << omp_get_num_threads() << " threads..." << endl; test = false;}
 	    vector<Card> table;
 	    for (int i = 2; i < 7; ++i) { table.push_back(combo.at(i)); }
 	    vector<Card> myHand;
@@ -54,7 +58,8 @@ int main(const int argc, const char* argv[]) {
 	            ++winTally[1];
 	        }
 	    }
-	});
+  // }); // goes with for_each loop
+  } //goes with normal for loop
     // for (int i = 0; i < 10; i++) { cout << buckets[i] << " "; } // uncomment to see exact bucket values
     int total_hands = 0;
     for (int i = 0; i < 10; i++) { total_hands += buckets[i]; }

@@ -7,6 +7,8 @@ import hashlib
 import json
 from scipy.special import softmax
 
+from matplotlib import pyplot as plt
+
 from utils import *
 
 class player:
@@ -39,7 +41,7 @@ class player:
         return sha256.hexdigest()
 
     @abstractmethod
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = call_amount
@@ -47,12 +49,12 @@ class player:
             bet_amount = self.money
         return bet_amount
     
-    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = 0
         try:
-            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players)
+            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx)
         except Exception as e:
             import traceback
             try:
@@ -67,13 +69,13 @@ class player:
         max_others_worth = 0
         for i,worth in enumerate(others_worth):
             if i == player_turn: continue
-            if worth > max_others_worth:
-                max_others_worth = worth
+            if worth + player_bids[i] > max_others_worth:
+                max_others_worth = worth + player_bids[i]
         
         if bet_amount > max_others_worth:
             bet_amount = max_others_worth
             try:
-                say(f"player {self.name} bet more than everyone else has. truncating bet to maximum of other's worth")
+                print(f"player {self.name} bet more than everyone else has. truncating bet to maximum of other's worth")
             except:
                 print(f"player {self.name} bet more than everyone else has. truncating bet to maximum of other's worth")
 
@@ -169,7 +171,7 @@ class human(player):
                 error()
         return bet_amount
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         print(f"{self.name} has {self.money} moneys.")
@@ -192,7 +194,7 @@ class random(player):
     def constructor(name, auth):
         return random(name, auth)
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_perc = .7
@@ -217,7 +219,7 @@ class raiser(player):
     def constructor(name, auth):
         return raiser(name,auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_multiplier = 1.1
@@ -232,7 +234,7 @@ class tracker(player):
     def constructor(name, auth):
         return tracker(name, auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         if not os.path.exists(self.name+"_tracker"):
@@ -243,7 +245,7 @@ class tracker(player):
             with open(path,'w') as file:
                 json.dump(dump, file)
         
-        return super().make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players)
+        return super().make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx)
     
     def compute_results(self, auth, tabled_cards, others_worth, pot, player_names, player_cards):
         if self.hash_auth(auth) != self.auth:
@@ -260,16 +262,14 @@ class tracker(player):
                 print(self.name+str(json.load(file)))
 
 class expector(player):
-    def __init__(self, name:str, auth, EXPONENT1=2, EXPONENT2=2):
+    def __init__(self, name:str, auth):
         super().__init__(name,auth)
         self.prev_full_hand = []
         self.prev_probs = np.ones(3)/3
-        self.EXPONENT1 = EXPONENT1
-        self.EXPONENT2 = EXPONENT2
 
     @staticmethod
-    def constructor(name, auth, EXPONENT1=2, EXPONENT2=2):
-        return expector(name, auth, EXPONENT1=EXPONENT1, EXPONENT2=EXPONENT2)
+    def constructor(name, auth):
+        return expector(name, auth)
     
     def num_opps_to_calculate(self, auth, num_tabled:int, num_players:int):
         if self.hash_auth(auth) != self.auth:
@@ -305,7 +305,7 @@ class expector(player):
         
         self.prev_full_hand = curr_full_hand
 
-        self.prev_probs = calc_probs_multiple_opps(hand=self.hand, tabled=tabled_cards, num_opps=num_opps)
+        _,_,self.prev_probs = calc_probs_multiple_opps(hand=self.hand, tabled=tabled_cards, num_opps=num_opps)
 
         if num_opps != num_players - 1:
             if num_opps > 0:
@@ -319,7 +319,7 @@ class expector(player):
         return self.prev_probs
 
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
@@ -335,27 +335,26 @@ class expector(player):
         elif len(tabled_cards) == 5:
             num_betting_rounds_left = 1
         
-        expected_winnings_exp1 = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-i**self.EXPONENT1) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i**self.EXPONENT1)/2 for i in range(call_amount,self.money+1)])
-        expected_winnings_exp2 = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-(i**self.EXPONENT2)) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i**self.EXPONENT2)/2 for i in range(call_amount,self.money+1)])
-        pos_expected_winnings = expected_winnings_exp2[expected_winnings_exp1>0]
+        expected_winnings = np.array([probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-i) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + i)/2 for i in range(call_amount,self.money+1)])
+        pos_expected_winnings = expected_winnings[expected_winnings>0]
         if len(pos_expected_winnings) > 0:
             expected_winnings_argmax = np.argmax(pos_expected_winnings)
             max_expected_winnings = pos_expected_winnings[expected_winnings_argmax]
-            [print(f"bet: {i+call_amount}, E[{(i+call_amount)**self.EXPONENT1}]: {e}") for i,e in enumerate(pos_expected_winnings)]
-            bet_choice_probs = softmax(pos_expected_winnings)
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)}]: {e}") for i,e in enumerate(pos_expected_winnings)]
+            bet_choice_probs = softmax(pos_expected_winnings**2)
             choice = call_amount + np.random.choice([i for i in range(len(bet_choice_probs))],p=bet_choice_probs)
-        elif len(expected_winnings_exp1) > 0:
-            expected_winnings_argmax = np.argmax(expected_winnings_exp1)
-            max_expected_winnings = expected_winnings_exp1[expected_winnings_argmax]
-            [print(f"bet: {i+call_amount}, expectation: {e}") for i,e in enumerate(expected_winnings_exp1)]
+        elif len(expected_winnings) > 0:
+            expected_winnings_argmax = np.argmax(expected_winnings)
+            max_expected_winnings = expected_winnings[expected_winnings_argmax]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)}]: {e}") for i,e in enumerate(expected_winnings)]
             choice = 0
         else:
             # we have to decide whether to go all in here
             # because the call amount is more money than we have
             choice = self.money
-            expected_winnings_exp1 = probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-choice) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + choice)/2
-            max_expected_winnings = expected_winnings_exp1
-            if expected_winnings_exp1 < 0:
+            expected_winnings = probs[0]*(pot + num_betting_rounds_left*sum(player_bids)) + probs[1]*(-choice) + probs[2]*(pot + num_betting_rounds_left*sum(player_bids) + choice)/2
+            max_expected_winnings = expected_winnings
+            if expected_winnings < 0:
                 # we fold
                 choice = 0
         print(f"probs: {probs}")
@@ -373,17 +372,358 @@ class expector(player):
             return 0
         return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)
 
+class ratio(expector):
+    def __init__(self,name:str,auth):
+        super().__init__(name,auth)
+        self.prev_full_hand = []
+        self.prev_probs = np.ones(3)/3
+    
+    @staticmethod
+    def constructor(name, auth):
+        return ratio(name, auth)
+    
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int):
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        num_players = len(player_names) - sum(folded_players)
+        probs = self.calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
+        min_expected_loss = 0.0
+        expected_loss_argmin = 0
+
+        num_betting_rounds_left = 4
+        if len(tabled_cards) == 3:
+            num_betting_rounds_left = 3
+        elif len(tabled_cards) == 4:
+            num_betting_rounds_left = 2
+        elif len(tabled_cards) == 5:
+            num_betting_rounds_left = 1
+        
+        expected_pot = pot + num_betting_rounds_left*sum(player_bids)
+
+        expected_loss_ratios = np.array([probs[0]*(-(expected_pot)/(self.money + expected_pot)) + probs[1]*(i/(self.money - i)) + probs[2]*(-expected_pot/(2*self.money + expected_pot)) for i in range(call_amount,self.money)])
+        neg_expected_loss_ratios = expected_loss_ratios[expected_loss_ratios<0]
+        
+        if len(neg_expected_loss_ratios) > 0:
+            expected_loss_argmin = np.argmin(neg_expected_loss_ratios)
+            min_expected_loss = neg_expected_loss_ratios[expected_loss_argmin]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)}]: {e}") for i,e in enumerate(neg_expected_loss_ratios)]
+            bet_choice_probs = softmax(-1*neg_expected_loss_ratios)
+            choice = call_amount + np.random.choice([i for i in range(len(bet_choice_probs))],p=bet_choice_probs)
+        elif len(expected_loss_ratios) > 0:
+            expected_loss_argmin = np.argmin(expected_loss_ratios)
+            min_expected_loss = expected_loss_ratios[expected_loss_argmin]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)}]: {e}") for i,e in enumerate(expected_loss_ratios)]
+            choice = 0
+        else:
+            # we have to decide whether to go all in here
+            # because the call amount is more money than we have
+            choice = self.money
+            expected_loss = probs[0]*(-(expected_pot)/(self.money + expected_pot)) + probs[1]*(choice) + probs[2]*(-expected_pot/(2*self.money + expected_pot))
+            min_expected_loss = expected_loss
+            if expected_loss > 0:
+                choice = 0
+        
+        print(f"probs: {probs}")
+        print(f"min expected loss: {min_expected_loss}")
+
+        return choice
+
 class bayesian(expector):
+    def __init__(self, name, auth):
+        super().__init__(name, auth)
+        self.prev_probs = (np.ones(10)/10, np.ones(10)/10, np.ones(3)/3)
+        self.folder = self.name+"_bayes"
+        self.temp_filename = "temp.json"
+        self.database_filename = "data.json"
+
     @staticmethod
     def constructor(name, auth):
         return bayesian(name, auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list) -> int:
+    def calculate_probs(self, auth, tabled_cards, num_players):
         if self.hash_auth(auth) != self.auth:
             return 0
-        return super().make_decision(auth, call_amount, tabled_cards, others_worth, pot, player_bids, player_turn, player_names, folded_players)
+        num_opps = self.num_opps_to_calculate(auth=auth, num_tabled=len(tabled_cards), num_players=num_players)
+        
+        curr_full_hand = self.hand + tabled_cards
+        if self.prev_full_hand == curr_full_hand:
+            return self.prev_probs
+        
+        if num_opps > 1 and len(tabled_cards) < 5:
+            try:
+                say(f"{self.name} calculating")
+            except:
+                print(f"{self.name} calculating")
+        
+        self.prev_full_hand = curr_full_hand
+
+        self.prev_probs = calc_probs_multiple_opps(hand=self.hand, tabled=tabled_cards, num_opps=num_opps)
+
+        # self_hand_probs, opp_hand_probs, wl_probs = self.prev_probs
+
+        return self.prev_probs
     
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+        if self.hash_auth(auth) != self.auth:
+            return 0
+        
+        num_players = len(player_names) - sum(folded_players)
+        self_hand_probs, opp_hand_probs, wl_probs = self.calculate_probs(auth=auth, tabled_cards=tabled_cards, num_players=num_players)
+        # if np.allclose(opp_hand_probs,np.zeros_like(opp_hand_probs)):
+        #     # we only computed the self probs, we need to 
+        
+
+        if not os.path.exists(self.folder):
+            os.mkdir(self.folder)
+
+        
+        if not os.path.exists(os.path.join(self.folder,self.temp_filename)):
+            temp_data = dict()
+            for i,name in enumerate(player_names):
+                if i==player_turn:
+                    continue
+                temp_data[name] = {"pre-flop":{"called":tuple(),"raised":tuple()},"post-flop pre-turn":{"called":tuple(),"raised":tuple()},"post-turn pre-river":{"called":tuple(),"raised":tuple()},"post-river":{"called":tuple(),"raised":tuple()}}
+            with open(os.path.join(self.folder,self.temp_filename),'w') as temp_file:
+                json.dump(temp_data,temp_file)
+        else:
+            # load temp_data object to append to
+            with open(os.path.join(self.folder,self.temp_filename),'r+') as temp_file:
+                temp_data = json.load(temp_file)
+        
+        for name in player_names:
+            player_path = os.path.join(self.folder,name)
+            if not os.path.exists(player_path):
+                os.mkdir(player_path)
+                json_file_path = os.path.join(player_path,self.database_filename)
+                obj = {"pre-flop":{"called":dict(),"raised":dict()},"post-flop pre-turn":{"called":dict(),"raised":dict()},"post-turn pre-river":{"called":dict(),"raised":dict()},"post-river":{"called":dict(),"raised":dict()}}
+                with open(json_file_path,"w") as file:
+                    json.dump(obj,file)
+        
+
+        betting_round = ""
+        if len(tabled_cards) == 0:
+            betting_round = "pre-flop"
+        elif len(tabled_cards) == 3:
+            betting_round = "post-flop pre-turn"
+        elif len(tabled_cards) == 4:
+            betting_round = "post-turn pre-river"
+        elif len(tabled_cards) == 5:
+            betting_round = "post-river"
+        else:
+            raise RuntimeError("there are an invalid number of cards on the table")
+
+
+        total_game_money = np.sum(player_bids) + np.sum(others_worth) + pot
+
+        
+        
+
+        # loop through each player, getting the worse-case scenario for us (smallest win probability)
+        for i in range(len(player_names)):
+            if folded_players[i]:
+                continue
+            if i==player_turn:
+                continue
+            
+            
+            # get the proportion of the total game value held by this player
+            player_moneys = others_worth[i] + player_bids[i]
+            lamb = player_moneys/total_game_money
+
+            player_name = player_names[i]
+            player_bid = player_bids[i]
+            player_path = os.path.join(self.folder,player_name)
+            player_bid_type = "raised" if i == last_raise_idx else "called"
+
+            with open(os.path.join(player_path,self.database_filename)) as datafile:
+                player_data = json.load(datafile)
+                current_betting_dict = player_data[betting_round][player_bid_type]
+                if player_bid_type == 'raised':
+                    bid_str = str(player_bid - player_bids[prev_raise_idx])
+                else:
+                    bid_str = str(player_bid)
+                if bid_str in current_betting_dict:
+                    current_betting_data = current_betting_dict[bid_str]
+                else:
+                    current_betting_data = None
+            
+            if current_betting_data is not None:
+                numpy_betting_data = np.sum(current_betting_data,axis=0)
+            else:
+                numpy_betting_data = np.zeros_like(opp_hand_probs)
+        
+            # compute alphas, scaling 
+            if player_moneys == 0:
+                # if they have nothing left, we don't consider their previous data to be relevant 
+                # (better players will have more meaningful data, and also more money in the game)
+                alphas = opp_hand_probs
+            else:
+                alphas = opp_hand_probs/lamb + numpy_betting_data
+            
+            # here we are adding one to each alpha, to satisfy the unique mode constraint, 
+            # but then we also subtract one from each alpha, so the net is 0
+            print(f"opp_hand_probs: {opp_hand_probs}")
+            print(f"lamb: {lamb}")
+            print(f"numpy data: {numpy_betting_data}")
+            print(f"alpha: {alphas}")
+            modes = alphas/(np.sum(alphas))
+            
+            # create a prob matrix
+            prob_matrix = np.zeros((10,10))
+            for i,self_prob in enumerate(self_hand_probs):
+                for ii,opp_prob in enumerate(modes):
+                    prob_matrix[i,ii] = self_prob*opp_prob
+
+            tie_prob = np.sum(np.diag(prob_matrix))
+            win_prob = np.sum(np.tril(prob_matrix)) - tie_prob
+            loss_prob = np.sum(np.triu(prob_matrix)) - tie_prob
+            new_wl_probs = np.array([win_prob,loss_prob,tie_prob])
+            
+            # since we're playing to win, we need to do our calculations with the worst-case scenario
+            if new_wl_probs[0] < wl_probs[0]:
+                wl_probs = new_wl_probs
+            
+            # append the current bid to the appropriate tuple
+            old_tuple = temp_data[player_name][betting_round][player_bid_type]
+            new_tuple = (*old_tuple,player_bid)
+            temp_data[player_name][betting_round][player_bid_type] = new_tuple
+
+        
+        # after all player bids have been updated, we save the temp_data object back to storage
+        with open(os.path.join(self.folder,self.temp_filename),'r+') as temp_file:
+            json.dump(temp_data,temp_file)
+
+        # the following is ripped straight from the ratio player class
+        
+        probs = wl_probs
+        
+        min_expected_loss = 0.0
+        expected_loss_argmin = 0
+
+        num_betting_rounds_left = 4
+        if len(tabled_cards) == 3:
+            num_betting_rounds_left = 3
+        elif len(tabled_cards) == 4:
+            num_betting_rounds_left = 2
+        elif len(tabled_cards) == 5:
+            num_betting_rounds_left = 1
+        
+        expected_pot = pot + num_betting_rounds_left*sum(player_bids)
+
+        expected_loss_ratios = np.array([probs[0]*(-(expected_pot)/(self.money + expected_pot)) + probs[1]*(i/(self.money - i)) + probs[2]*(-expected_pot/(2*self.money + expected_pot)) for i in range(call_amount,self.money)])
+        neg_expected_loss_ratios = expected_loss_ratios[expected_loss_ratios<0]
+        
+        if len(neg_expected_loss_ratios) > 0:
+            expected_loss_argmin = np.argmin(neg_expected_loss_ratios)
+            min_expected_loss = neg_expected_loss_ratios[expected_loss_argmin]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)}]: {e}") for i,e in enumerate(neg_expected_loss_ratios)]
+            bet_choice_probs = softmax(-1*neg_expected_loss_ratios)
+            choice = call_amount + np.random.choice([i for i in range(len(bet_choice_probs))],p=bet_choice_probs)
+        elif len(expected_loss_ratios) > 0:
+            expected_loss_argmin = np.argmin(expected_loss_ratios)
+            min_expected_loss = expected_loss_ratios[expected_loss_argmin]
+            [print(f"bet: {i+call_amount}, E[{(i+call_amount)}]: {e}") for i,e in enumerate(expected_loss_ratios)]
+            choice = 0
+        else:
+            # we have to decide whether to go all in here
+            # because the call amount is more money than we have
+            choice = self.money
+            expected_loss = probs[0]*(-(expected_pot)/(self.money + expected_pot)) + probs[1]*(choice) + probs[2]*(-expected_pot/(2*self.money + expected_pot))
+            min_expected_loss = expected_loss
+            if expected_loss > 0:
+                choice = 0
+        
+        print(f"probs: {probs}")
+        print(f"min expected loss: {min_expected_loss}")
+
+        return choice        
+
     def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
         if self.hash_auth(auth) != self.auth:
             return 0
+        
+        if not os.path.exists(os.path.join(self.folder,self.temp_filename)):
+            print(f"{self.name} cannot find it's temp data file...")
+            return
+        
+        with open(os.path.join(self.folder,self.temp_filename)) as temp_file:
+            temp_data = json.load(temp_file)
+        
+        for i in range(len(player_names)):
+            player_name = player_names[i]
+            player_hand = player_cards[i]
+            player_path = os.path.join(self.folder,player_name)
+            temp_player_dict = temp_data[player_name]
+
+            
+            if not os.path.exists(os.path.join(player_path,self.database_filename)):
+                print(f"{self.name} cannot find data file for {player_name}")
+                continue
+
+            with open(os.path.join(player_path,self.database_filename),"r+") as datafile:
+                player_data = json.load(datafile)
+
+            for betting_round in temp_player_dict.keys():
+                betting_round_dict = temp_player_dict[betting_round]
+                if betting_round == "pre-flop":
+                    tables = []
+                elif betting_round == "post-flop pre-turn":
+                    tables = tabled_cards[:3]
+                elif betting_round == "post-turn pre-river":
+                    tables = tabled_cards[:4]
+                elif betting_round == "post-river":
+                    tables = tabled_cards
+                else:
+                    raise RuntimeError(f"betting round {betting_round} is not valid!")
+                
+                # TODO: this line currently throws an error, as subprocesses cannot create child processes. 
+                # we probably need to create a new function similar to this that uses threading
+                # Also, only handles the case where there are 0 opponents. 
+                # since this is the only time we need this
+                player_hand_opps,_,_ = calc_probs_multiple_opps(hand=player_hand, tabled=tabled_cards, num_opps=0)
+                for bet_type in betting_round_dict.keys():
+                    bet_type_tuple = betting_round_dict[bet_type]
+                    for bet_amount in bet_type_tuple:
+                        if bet_amount in player_data[betting_round][bet_type]:
+                            bet_amount_tuples = player_data[betting_round][bet_type][bet_amount]
+                            player_data[betting_round][bet_type][bet_amount] = (*bet_amount_tuples, tuple(player_hand_opps))
+                        else:
+                            player_data[betting_round][bet_type][bet_amount] = tuple((tuple(np.zeros_like(player_hand_opps)),tuple(player_hand_opps)))
+            
+            with open(os.path.join(player_path,self.database_filename),"w") as datafile:
+                json.dump(player_data,datafile)
+            
+
+        
+
+class external_func(player):
+    # TODO: actually implement this
+    """
+        this class takes in two functions that become the make_decsion and compute_results functions for the player
+        it achieves this by overriding these functions with a method that's passed in
+    """
+    def __init__(self,name:str, auth, decision_function:callable=None, compute_function:callable=None):
+        super().__init__(name,auth)
+        if decision_function is not None:
+            self.make_decision = decision_function
+        if compute_function is not None:
+            self.compute_results = compute_function
+    
+    @staticmethod
+    def constructor(name:str, auth, decision_function:callable=None, compute_function:callable=None):
+        return external_func(name, auth, decision_function, compute_function)
+
+
+class folder(player):
+    @staticmethod
+    def constructor(name, auth):
+        return folder(name, auth)
+    
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int):
+        if len(player_names) > 2:
+            return 0 # if there is more than one other person, fold
+        return self.money # otherwise, go all in
+    
+    def compute_results(self, auth, tabled_cards:list, others_worth:list, pot:int, player_names:list, player_cards:list):
         return super().compute_results(auth, tabled_cards, others_worth, pot, player_names, player_cards)
+    
