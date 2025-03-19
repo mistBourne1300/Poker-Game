@@ -6,7 +6,6 @@ import multiprocessing as mp
 from tqdm import tqdm
 from itertools import combinations
 from my_queue import MyQueue
-from math import comb
 MININTERVAL = 1.0
 
 ranks = [r for r in range(14,1,-1)]
@@ -350,19 +349,20 @@ def computer_add(lizt:list, str_remaining:list=full_str_deck, remaining_cards:li
 
 
 
-def say(msg):
-    print(msg)
+def say(msg,printout=True):
+    if printout: print(msg)
     exit_code = os.system(f'say "{msg}"')
     if exit_code > 0:
         raise KeyboardInterrupt("interrupt in utils.say()")
 
 def confirm(statement):
     print("confirm " + statement)
-    try:
-        os.system(f'say "confirm {statement}"')
-    except:
-        pass
+    p = mp.Process(target=say, args = ("confirm " + statement,False))
+    p.start()
     temp = input("press enter:")
+    p.kill()
+    p.join()
+    p.close()
 
 def card_list_to_card_names(cards):
     nruter = []
@@ -410,6 +410,44 @@ def card_list_to_card_names(cards):
 
 
 def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
+    if num_opps==0 and len(tabled)==5:
+        # table is full and number of opponents to calculate is 0. 
+        # Simply return the naive probabilities with the self hand probability 1-hot encoded
+
+        self_hand_probs = np.zeros(10)
+
+        selfhand = hand + tabled
+        selfres = calc_best_hand(selfhand)
+
+        self_hand_probs[selfres[0]] = 1
+
+        choose_52_7 = 133784560
+        prob_royal_flush = 4324/choose_52_7
+        prob_straight_flush = 37260/choose_52_7
+        prob_four_kind = 224848/choose_52_7
+        prob_full_house = 3473184/choose_52_7
+        prob_flush = 4047644/choose_52_7
+        prob_straight = 6180020/choose_52_7
+        prob_three_kind = 6461620/choose_52_7
+        prob_two_pair = 31433400/choose_52_7
+        prob_pair = 58627800/choose_52_7
+        prob_high = 23294460/choose_52_7
+        opp_hand_probs = [prob_high, prob_pair, prob_two_pair, prob_three_kind, prob_straight, prob_flush, prob_full_house, prob_four_kind, prob_straight_flush, prob_royal_flush]
+
+        prob_matrix = np.zeros((10,10))
+        for i,self_prob in enumerate(self_hand_probs):
+            for ii,opp_prob in enumerate(opp_hand_probs):
+                prob_matrix[i,ii] = self_prob*opp_prob
+        
+        tie_prob = np.sum(np.diag(prob_matrix))
+        win_prob = np.sum(np.tril(prob_matrix)) - tie_prob
+        loss_prob = np.sum(np.triu(prob_matrix)) - tie_prob
+        wl_probs = np.array([win_prob,loss_prob,tie_prob])
+
+        return self_hand_probs,opp_hand_probs,wl_probs
+
+
+
     # create the deck of cards
     deck, _, _, _, _ = create_deck()
     # remove cards that ar already in hand (2 cards)
@@ -475,6 +513,7 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
     # double check all processes are finished
     for p in processes:
         p.join()
+
     
     # empty the queue
     while not q.empty():
@@ -482,6 +521,9 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
         self_tally += st
         opp_tally += ot
         wl_tally += wlt
+    
+    for p in processes:
+        p.close()
     
     # get probabilities from tally
     self_hand_probs = self_tally/np.sum(self_tally)
