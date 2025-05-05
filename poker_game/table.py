@@ -83,6 +83,15 @@ class table:
     def num_betting_players(self, folded_players:list, player_max_earnings:list):
         return len(self.players) - sum(folded_players) - sum([(earning_potential < np.inf) for earning_potential in player_max_earnings])
     
+    def continue_betting(self, current_bids, folded_players, player_max_earnings):
+        max_bid = max(current_bids)
+        for i in range(len(folded_players)):
+            if folded_players[i]: continue
+            if player_max_earnings[i] < np.inf: continue
+            if current_bids[i] < max_bid:
+                return True
+        return False
+    
     def pre_flop_bet(self, dealer_idx):
         current_bids,player_max_earnings, current_raise = self.initiate_blinds(dealer_idx)
         # current_raise = self.big_blind
@@ -112,7 +121,7 @@ class table:
             current_player = self.players[current_player_idx]
             call_amount = current_raise - current_bids[current_player_idx]
             others_worth = [player.worth() for player in self.players]
-            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx = self.prev_raise_idx)
+            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx = self.prev_raise_idx, bet_num=roundabout)
             
             if player_bid < call_amount:
                 if current_player.worth() > 0:
@@ -151,12 +160,16 @@ class table:
             # if self.v: print(f"folded players: {folded_players}")
             # if self.v: print(f"player_max_earnings: {player_max_earnings}\n")
             roundabout += 1
-            if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) <= 1:
-                break
+            # TODO: this is broken, and is too trigger happy when players go all in.
+            # rework this into a separate function that check for 
+            # all players are either at the max bid, or folded, or all in
+            # if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) <= 1:
+            #     break
         
         if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) <= 1:
-            pot = sum(current_bids)
-            return pot, folded_players, player_max_earnings, last_raise_idx
+            if player_max_earnings[big_blind_idx] >= np.inf:
+                pot = sum(current_bids)
+                return pot, folded_players, player_max_earnings, last_raise_idx
 
         # big blind needs an extra turn
         confirm_needed = True
@@ -165,7 +178,7 @@ class table:
         big_blind_player = self.players[big_blind_idx]
         call_amount = current_raise - current_bids[big_blind_idx]
         others_worth = [player.worth() for player in self.players]
-        player_bid = big_blind_player.decide(auth=big_blind_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx)
+        player_bid = big_blind_player.decide(auth=big_blind_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx, bet_num=roundabout)
         if player_bid < call_amount:
             if big_blind_player.worth() > 0:
                 folded_players[big_blind_idx] = True
@@ -193,6 +206,7 @@ class table:
             utils.confirm("")
         
         current_player_idx = (big_blind_idx+1)%len(self.players)
+        roundabout += 1
         # if self.v: print(f"current_raise: {current_raise}")
         # if self.v: print(f"big blind: {self.big_blind}")
 
@@ -202,7 +216,7 @@ class table:
 
 
         if current_raise > self.big_blind:
-            while current_player_idx != last_raise_idx:
+            while self.continue_betting(current_bids=current_bids, folded_players=folded_players, player_max_earnings=player_max_earnings):#current_player_idx != last_raise_idx:
                 confirm_needed = True
                 # if self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings) <= 1 and current_bids[current_player_idx] == current_raise:
                 #     break
@@ -216,7 +230,7 @@ class table:
                 current_player = self.players[current_player_idx]
                 call_amount = current_raise - current_bids[current_player_idx]
                 others_worth = [player.worth() for player in self.players]
-                player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx)
+                player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=[], others_worth=others_worth, pot=0, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx, bet_num=roundabout)
                 
                 if player_bid < call_amount:
                     if current_player.worth() > 0:
@@ -285,7 +299,7 @@ class table:
             current_player = self.players[current_player_idx]
             call_amount = current_raise - current_bids[current_player_idx]
             others_worth = [player.worth() for player in self.players]
-            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx)
+            player_bid = current_player.decide(auth=current_auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=current_bids, player_turn=current_player_idx, player_names=[player.get_name() for player in self.players], folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=self.prev_raise_idx, bet_num=roundabout)
             
             if player_bid < call_amount:
                 if current_player.worth() > 0:
@@ -309,6 +323,7 @@ class table:
                 else:
                     self.say(f"{current_player.get_name()} checks.")
             if current_player.worth() == 0:
+                # TODO: fix this max calculation
                 player_max_earnings[current_player_idx] = pot + (current_bids[current_player_idx])*self.num_betting_players(folded_players=folded_players, player_max_earnings=player_max_earnings)
                 self.say(f"{current_player.get_name()} goes all in.\nTheir maximum earning potential is {player_max_earnings[current_player_idx]}")
             if (not isinstance(current_player, human)) and current_raise > 0 and self.MODE == mode.HYBRID_PLAY:

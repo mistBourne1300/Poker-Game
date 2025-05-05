@@ -42,7 +42,7 @@ class player:
         return sha256.hexdigest()
 
     @abstractmethod
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = call_amount
@@ -50,12 +50,12 @@ class player:
             bet_amount = self.money
         return bet_amount
     
-    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def decide(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         bet_amount = 0
         try:
-            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx)
+            bet_amount = self.make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx, bet_num=bet_num)
         except Exception as e:
             import traceback
             try:
@@ -68,6 +68,7 @@ class player:
         print(f"self money: {self.money}")
 
         max_others_worth = 0
+        # TODO: this calculation includes folded players...
         for i,worth in enumerate(others_worth):
             if i == player_turn: continue
             if worth + player_bids[i] > max_others_worth:
@@ -172,7 +173,7 @@ class human(player):
                 error()
         return bet_amount
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         print(f"{self.name} has {self.money} moneys.")
@@ -195,7 +196,7 @@ class random(player):
     def constructor(name, auth):
         return random(name, auth)
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_perc = .7
@@ -220,7 +221,7 @@ class raiser(player):
     def constructor(name, auth):
         return raiser(name,auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         call_multiplier = 1.1
@@ -235,7 +236,7 @@ class tracker(player):
     def constructor(name, auth):
         return tracker(name, auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         if not os.path.exists(self.name+"_tracker"):
@@ -246,7 +247,7 @@ class tracker(player):
             with open(path,'w') as file:
                 json.dump(dump, file,indent=1)
         
-        return super().make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx)
+        return super().make_decision(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx, bet_num=bet_num)
     
     def compute_results(self, auth, tabled_cards, others_worth, pot, player_names, player_cards):
         if self.hash_auth(auth) != self.auth:
@@ -373,7 +374,7 @@ class expector(player):
         print(f"max expected winnings: {max_expected_winnings}")
         return choice
 
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
@@ -457,7 +458,10 @@ class ratio(expector):
             choice = self.money
             # expected_winnings = expected_winnings[expected_winnings>0]
             expected_winnings = np.array([probs[0]*(expected_pot) + probs[1]*(-i) + probs[2]*(expected_pot + i)/2 for i in range(call_amount,self.money+1)])
-            max_expected_winnings = np.max(expected_winnings)
+            if len(expected_winnings) > 0:
+                max_expected_winnings = np.max(expected_winnings)
+            else:
+                max_expected_winnings = probs[0]*expected_pot+ probs[1]*(-self.money) + probs[2]*(expected_pot + self.money)/2
             if max_expected_winnings <= 0:
                 choice = 0
         
@@ -466,7 +470,7 @@ class ratio(expector):
 
         return choice
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int):
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int):
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
@@ -485,10 +489,10 @@ class bayesian(ratio):
         self.ignore_ties = ignore_ties
 
     @staticmethod
-    def constructor(name, auth, bayes_avg=False, ignore_ties=True):
+    def constructor(name, auth, bayes_avg=False, ignore_ties=False):
         return bayesian(name, auth, bayes_avg, ignore_ties)
     
-    def get_bayesian_wl_probs(self,auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int):
+    def get_bayesian_wl_probs(self,auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int):
         if self.hash_auth(auth) != self.auth:
             return 0
 
@@ -496,6 +500,7 @@ class bayesian(ratio):
         self_hand_probs, opp_hand_probs, wl_probs = self.calculate_probs(auth=auth, tabled_cards=tabled_cards, num_players=num_players)
         # if np.allclose(opp_hand_probs,np.zeros_like(opp_hand_probs)):
         #     # we only computed the self probs, we need to 
+        tie_prob = wl_probs[-1]
         
 
         if not os.path.exists(self.folder):
@@ -514,6 +519,11 @@ class bayesian(ratio):
             # we need to remove this old data
             if len(tabled_cards) == 0:
                 os.remove(os.path.join(self.folder,self.temp_filename))
+                temp_data = dict()
+                for i,name in enumerate(player_names):
+                    if i==player_turn:
+                        continue
+                    temp_data[name] = {"pre-flop":{"called":tuple(),"raised":tuple()},"post-flop pre-turn":{"called":tuple(),"raised":tuple()},"post-turn pre-river":{"called":tuple(),"raised":tuple()},"post-river":{"called":tuple(),"raised":tuple()}}
             else:
                 # load temp_data object to append to
                 try:
@@ -641,16 +651,16 @@ class bayesian(ratio):
             print("the current temp_data object:")
             print(temp_data)
             time.sleep(10)
-        
+        wl_probs[-1] = tie_prob
         return wl_probs
 
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int) -> int:
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int) -> int:
         if self.hash_auth(auth) != self.auth:
             return 0
 
         
-        probs = self.get_bayesian_wl_probs(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx)
+        probs = self.get_bayesian_wl_probs(auth=auth, call_amount=call_amount, tabled_cards=tabled_cards, others_worth=others_worth, pot=pot, player_bids=player_bids, player_turn=player_turn, player_names=player_names, folded_players=folded_players, last_raise_idx=last_raise_idx, prev_raise_idx=prev_raise_idx, bet_num=bet_num)
         # here we experiment...
         if self.ignore_ties:
             print("IGNORE TIES IS ON")
@@ -742,7 +752,7 @@ class folder(player):
     def constructor(name, auth):
         return folder(name, auth)
     
-    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int):
+    def make_decision(self, auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int):
         if len(player_names) > 2:
             return 0 # if there is more than one other person, fold
         return self.money # otherwise, go all in

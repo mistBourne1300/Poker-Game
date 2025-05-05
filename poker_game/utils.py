@@ -666,7 +666,7 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
     lock.release()
     q.put((self_tally,opp_tally,wl_tally))
     
-
+# TODO: here, have it check whether the player or the opponent wins in the same hand type as well, and return those probabilities
 def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:list, num_opps:int, pbar=None, lock=None):
 
     combos = list(combinations(deck,2))
