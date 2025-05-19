@@ -312,6 +312,7 @@ class expector(player):
         self.prev_full_hand = curr_full_hand
 
         self.prev_probs = calc_probs_multiple_opps(hand=self.hand, tabled=tabled_cards, num_opps=num_opps)
+        np.nan_to_num(self.prev_probs[3],copy=False, nan=0.0, posinf=0.0, neginf=0.0)
 
         # self_hand_probs, opp_hand_probs, wl_probs = self.prev_probs
         if speak_calculating:
@@ -321,16 +322,26 @@ class expector(player):
 
         if num_opps != num_players - 1:
             if num_opps > 0:
-                prob_win_against_true_opp_num = (self.prev_probs[2][0]**((num_players - 1)/num_opps))
+                prob_win_against_true_opp_num = self.prev_probs[2][0]**((num_players - 1)/num_opps) # better estimate prob that we win
+                within_hands_true_probs_win = self.prev_probs[3][:,0]**((num_players-1)/num_opps) # better estimate of within hands probs we win
             else:
-                prob_win_against_true_opp_num = (self.prev_probs[2][0]**(num_players - 1))
-            missing_prob = self.prev_probs[2][0] - prob_win_against_true_opp_num
-            self.prev_probs[2][0] = prob_win_against_true_opp_num
-            self.prev_probs[2][1] += missing_prob
+                prob_win_against_true_opp_num = (self.prev_probs[2][0]**(num_players - 1)) # better estimate prob that we win
+                within_hands_true_probs_win = self.prev_probs[3][:,0]**(num_players - 1) # better estimate of within hands probs we win
+            missing_prob = self.prev_probs[2][0] - prob_win_against_true_opp_num # get difference between old estimate and better estimae
+            self.prev_probs[2][0] = prob_win_against_true_opp_num # make the prob we win the better estimate
+            self.prev_probs[2][1] += missing_prob # give the prob we lose the difference
+
+            missing_probs = self.prev_probs[3][:,0] - within_hands_true_probs_win
+            self.prev_probs[3][:,0] = within_hands_true_probs_win
+            self.prev_probs[3][:,1] = missing_probs
+
+
 
         return self.prev_probs
 
     def get_choice(self,auth,call_amount,tabled_cards,pot,player_bids,probs):
+        if self.hash_auth(auth) != self.auth:
+            return 0
         max_expected_winnings = 0.0
         expected_winnings_argmax = 0
 
@@ -378,7 +389,7 @@ class expector(player):
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
-        _,_,probs = self.calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
+        _,_,probs,_ = self.calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
         return self.get_choice(auth=auth,call_amount=call_amount,tabled_cards=tabled_cards,pot=pot,player_bids=player_bids,probs=probs)
 
     
@@ -474,7 +485,7 @@ class ratio(expector):
         if self.hash_auth(auth) != self.auth:
             return 0
         num_players = len(player_names) - sum(folded_players)
-        _,_,probs = self.calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
+        _,_,probs,_ = self.calculate_probs(auth, tabled_cards=tabled_cards, num_players=num_players)
         return self.get_choice(auth=auth,call_amount=call_amount,tabled_cards=tabled_cards,pot=pot,player_bids=player_bids,probs=probs)
         
 # TODO: somehow check whether someone checked (and thus bet 0) or if they just haven't had the chance to bet until now
@@ -497,7 +508,7 @@ class bayesian(ratio):
             return 0
 
         num_players = len(player_names) - sum(folded_players)
-        self_hand_probs, opp_hand_probs, wl_probs = self.calculate_probs(auth=auth, tabled_cards=tabled_cards, num_players=num_players)
+        self_hand_probs, opp_hand_probs, wl_probs, within_hands_wl_probs = self.calculate_probs(auth=auth, tabled_cards=tabled_cards, num_players=num_players)
         # if np.allclose(opp_hand_probs,np.zeros_like(opp_hand_probs)):
         #     # we only computed the self probs, we need to 
         tie_prob = wl_probs[-1]
@@ -625,13 +636,24 @@ class bayesian(ratio):
                 for ii,opp_prob in enumerate(modes):
                     prob_matrix[i,ii] = self_prob*opp_prob
 
-            tie_prob = np.sum(np.diag(prob_matrix))
+            tie_probs = np.diag(prob_matrix)
+            tie_prob = np.sum(tie_probs)
             win_prob = np.sum(np.tril(prob_matrix)) - tie_prob
             loss_prob = np.sum(np.triu(prob_matrix)) - tie_prob
+            tie_prob = 0.0
+            print("within_hand_wl_probs:")
+            print(within_hands_wl_probs)
+            print()
+            for i,p in enumerate(tie_probs):
+                if np.any(within_hands_wl_probs[i,:]==np.nan) or np.any(within_hands_wl_probs[i,:]==np.inf) or np.any(within_hands_wl_probs[i,:]==-np.inf):
+                    continue
+                win_prob += p*within_hands_wl_probs[i,0]
+                loss_prob += p*within_hands_wl_probs[i,1]
+                tie_prob += p*within_hands_wl_probs[i,2]
             new_wl_probs = np.array([win_prob,loss_prob,tie_prob])
             
             # since we're playing to win, we need to do our calculations with the worst-case scenario
-            if new_wl_probs[0] < wl_probs[0]:
+            if new_wl_probs[0] < wl_probs[0] and not (np.any(new_wl_probs==np.nan) or np.any(new_wl_probs==np.inf) or np.any(new_wl_probs==-np.inf)):
                 wl_probs = new_wl_probs
             
             # append the current bid to the appropriate tuple
@@ -712,7 +734,7 @@ class bayesian(ratio):
                     raise RuntimeError(f"betting round {betting_round} is not valid!")
                 
                 
-                player_hand_opps,_,_ = calc_probs_multiple_opps(hand=player_hand, tabled=tables, num_opps=0)
+                player_hand_opps,_,_,_ = calc_probs_multiple_opps(hand=player_hand, tabled=tables, num_opps=0)
                 for bet_type in betting_round_dict.keys():
                     bet_type_tuple = betting_round_dict[bet_type]
                     for bet_amount in bet_type_tuple:

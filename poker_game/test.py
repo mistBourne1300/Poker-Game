@@ -9,8 +9,8 @@ import time
 
 if __name__ == "__main__":
     hand = [utils.str_to_tuple(cstr) for cstr in ['2c','qh']]
-    tabled = [utils.str_to_tuple(cstr) for cstr in []]
-    num_opps = 0
+    tabled = [utils.str_to_tuple(cstr) for cstr in ['kh','as','9c','8d']]
+    num_opps = 1
     # np.set_printoptions(suppress=True)
     start = time.time()
     probs = utils.calc_probs_multiple_opps(hand, tabled, num_opps)

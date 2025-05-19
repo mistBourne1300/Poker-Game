@@ -444,7 +444,7 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
         loss_prob = np.sum(np.triu(prob_matrix)) - tie_prob
         wl_probs = np.array([win_prob,loss_prob,tie_prob])
 
-        return self_hand_probs,opp_hand_probs,wl_probs
+        return self_hand_probs,opp_hand_probs,wl_probs,np.zeros((10,3))
 
 
 
@@ -509,6 +509,7 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
     self_tally = np.zeros(10)
     opp_tally = np.zeros(10)
     wl_tally = np.zeros(3)
+    within_hands_wl_tally = np.zeros((10,3))
     
     # double check all processes are finished
     for p in processes:
@@ -517,10 +518,12 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
     
     # empty the queue
     while not q.empty():
-        st, ot, wlt = q.get()
+        st, ot, wlt, whwlt = q.get()
         self_tally += st
         opp_tally += ot
         wl_tally += wlt
+        within_hands_wl_tally += whwlt
+
     
     for p in processes:
         p.close()
@@ -529,10 +532,12 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
     self_hand_probs = self_tally/np.sum(self_tally)
     opp_hand_probs = opp_tally
     wl_probs = wl_tally
+    within_hands_wl_probs = within_hands_wl_tally
     if num_opps != 0:
         opp_hand_probs = opp_hand_probs/np.sum(opp_tally)
         wl_probs = wl_probs/np.sum(wl_tally)
-
+        with np.errstate(divide='ignore', invalid='ignore'):
+            within_hands_wl_probs = within_hands_wl_probs/np.sum(within_hands_wl_tally,axis=1,keepdims=True)
     else:
         # we don't have a win/loss tally, we have a hand tally
         # the following calculations aren't exactly accurate, 
@@ -562,7 +567,7 @@ def calc_probs_multiple_opps(hand:list, tabled:list, num_opps:int):
         wl_probs = np.array([win_prob,loss_prob,tie_prob])
 
     print()
-    return self_hand_probs,opp_hand_probs,wl_probs
+    return self_hand_probs,opp_hand_probs,wl_probs,within_hands_wl_probs
 
 
 def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_opps:list, q:mp.Queue,  offset:int, lock):
@@ -576,6 +581,7 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
     self_tally = np.zeros(10)
     opp_tally = np.zeros(10)
     wl_tally = np.zeros(3)
+    within_hands_wl_tally = np.zeros((10,3))
 
 
     for i,c in enumerate(future_table):
@@ -602,9 +608,10 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
             for card in c:
                 deck.remove(card)
             # begin recursively calculating opponent hands
-            ot, wlt = recurse_opp_hand_calc(selfres, full_tabled, [], deck, num_opps, pbar=pbar, lock=lock)
+            ot, wlt, whwlt = recurse_opp_hand_calc(selfres, full_tabled, [], deck, num_opps, pbar=pbar, lock=lock)
             opp_tally += ot
             wl_tally += wlt
+            within_hands_wl_tally += whwlt
 
             # add cards back into deck
             for card in c:
@@ -614,7 +621,7 @@ def mp_self_hand_calc(hand:list, tabled:list, future_table:list, deck:list, num_
     lock.acquire()
     pbar.close()
     lock.release()
-    q.put((self_tally,opp_tally,wl_tally))
+    q.put((self_tally,opp_tally,wl_tally,within_hands_wl_tally))
 
 def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list, num_opps:int, q:mp.Queue, offset:int, lock):
     lock.acquire()
@@ -627,6 +634,7 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
     self_tally[selfres[0]] = 1
     opp_tally = np.zeros(10)
     wl_tally = np.zeros(3)
+    within_hands_wl_tally = np.zeros((10,3))
 
     opp_reses = []
 
@@ -643,20 +651,30 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
         oppres = calc_best_hand(opphand)
         opp_tally[oppres[0]] += 1
         if num_opps == 1:
-            if selfres > oppres:
+            if selfres[0] > oppres[0]:
                 wl_tally[0] += 1
-            elif oppres > selfres:
+            elif oppres[0] > selfres[0]:
                 wl_tally[1] += 1
             else:
-                wl_tally[2] += 1
+                hand_idx = selfres[0]
+                if selfres > oppres:
+                    wl_tally[0] += 1
+                    within_hands_wl_tally[hand_idx,0] += 1
+                elif selfres < oppres:
+                    wl_tally[1] += 1
+                    within_hands_wl_tally[hand_idx,1] += 1
+                else:
+                    wl_tally[2] += 1
+                    within_hands_wl_tally[hand_idx,2] += 1
         else:
             opp_reses.append(oppres)
             for card in c:
                 deck.remove(card)
             
-            ot,wlt = recurse_opp_hand_calc(selfres=selfres, full_tabled=tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps, pbar=pbar, lock=lock)
+            ot,wlt,whwlt = recurse_opp_hand_calc(selfres=selfres, full_tabled=tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps, pbar=pbar, lock=lock)
             opp_tally += ot
             wl_tally += wlt
+            within_hands_wl_tally += whwlt
 
             for card in c:
                 deck.append(card)
@@ -664,9 +682,12 @@ def mp_opp_hand_calc(selfres:tuple, tabled:list, first_opp_hands:list, deck:list
     lock.acquire()
     pbar.close()
     lock.release()
-    q.put((self_tally,opp_tally,wl_tally))
+    q.put((self_tally,opp_tally,wl_tally,within_hands_wl_tally))
     
 # TODO: here, have it check whether the player or the opponent wins in the same hand type as well, and return those probabilities
+# this requires storing a separate win_loss_tally for each hand type (should be a 2-d np array).
+# we then treat it like the wl_tally  below, and return it 
+# then, the upstream functions need to tandle that, and return it to the calling function (possible to be ignored)
 def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:list, num_opps:int, pbar=None, lock=None):
 
     combos = list(combinations(deck,2))
@@ -675,6 +696,7 @@ def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:
 
     opp_tally = np.zeros(10)
     wl_tally = np.zeros(3)
+    within_hands_wl_tally = np.zeros((10,3))
 
 
     for i,c in enumerate(combos): # get all combinations of 2 cards from the remaining deck
@@ -701,25 +723,35 @@ def recurse_opp_hand_calc(selfres:tuple, full_tabled:list, opp_reses:list, deck:
             # get the best opponent
             opp_winner = max(opp_reses)
 
-            if selfres > opp_winner: # we beat the best opponent
+            if selfres[0] > opp_winner[0]: # we beat the best opponent
                 wl_tally[0] += 1
-            elif selfres < opp_winner: # we lose to the best opponent
+            elif selfres[0] < opp_winner[0]: # we lose to the best opponent
                 wl_tally[1] += 1
-            else: # we tied the best opponent
-                wl_tally[2] += 1
+            else: # we tied the best opponent's hand, now we need to get more fine-grained
+                hand_idx = selfres[0]
+                if selfres > opp_winner:
+                    wl_tally[0] += 1
+                    within_hands_wl_tally[hand_idx,0] += 1
+                elif selfres < opp_winner:
+                    wl_tally[1] += 1
+                    within_hands_wl_tally[hand_idx,1] += 1
+                else:
+                    wl_tally[2] += 1
+                    within_hands_wl_tally[hand_idx,2] += 1
         else:
             # remove used cards from deck
             for card in c:
                 deck.remove(card)
             
             # go down another level of recursion to get the next opponent's hand
-            ot,wlt = recurse_opp_hand_calc(selfres=selfres, full_tabled=full_tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps)
+            ot,wlt,whwlt = recurse_opp_hand_calc(selfres=selfres, full_tabled=full_tabled, opp_reses=opp_reses, deck=deck, num_opps=num_opps)
             opp_tally += ot
             wl_tally += wlt
+            within_hands_wl_tally += whwlt
 
             # add cards back into deck
             for card in c:
                 deck.append(card)
         opp_reses.pop()
-    return opp_tally, wl_tally
+    return opp_tally, wl_tally, within_hands_wl_tally
 
