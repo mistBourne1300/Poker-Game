@@ -283,7 +283,7 @@ class expector(player):
         elif num_tabled == 3:
             return 1
         elif num_tabled == 4:
-            return min(num_players - 1,2)
+            return min(num_players - 1,1)
         elif num_tabled == 5:
             # this is the final calculation, we should get the most accurate probabilities we can
             return min(num_players - 1,2)
