@@ -490,7 +490,7 @@ class ratio(expector):
         
 # TODO: somehow check whether someone checked (and thus bet 0) or if they just haven't had the chance to bet until now
 class bayesian(ratio):
-    def __init__(self, name, auth, bayes_avg=False, ignore_ties=False):
+    def __init__(self, name, auth, bayes_avg=False, ignore_ties=False, lamb_multi = False):
         super().__init__(name, auth)
         self.prev_probs = (np.ones(10)/10, np.ones(10)/10, np.ones(3)/3)
         self.folder = self.name+"_bayes"
@@ -498,10 +498,11 @@ class bayesian(ratio):
         self.database_filename = "data.json"
         self.bayes_avg = bayes_avg
         self.ignore_ties = ignore_ties
+        self.lamb_multi = lamb_multi
 
     @staticmethod
-    def constructor(name, auth, bayes_avg=False, ignore_ties=False):
-        return bayesian(name, auth, bayes_avg, ignore_ties)
+    def constructor(name, auth, bayes_avg=False, ignore_ties=False, lamb_multi=False):
+        return bayesian(name, auth, bayes_avg, ignore_ties, lamb_multi=lamb_multi)
     
     def get_bayesian_wl_probs(self,auth, call_amount:int, tabled_cards:list, others_worth:list, pot:int, player_bids:list, player_turn:int, player_names:list, folded_players:list, last_raise_idx:int, prev_raise_idx:int, bet_num:int):
         if self.hash_auth(auth) != self.auth:
@@ -589,15 +590,24 @@ class bayesian(ratio):
             player_name = player_names[i]
             player_bid = player_bids[i]
             player_path = os.path.join(self.folder,player_name)
-            player_bid_type = "raised" if i == last_raise_idx else "called"
+            player_bid_type = "raised" if i == last_raise_idx  and player_bid > 0 else "called"
+            bid_str = ""
 
             with open(os.path.join(player_path,self.database_filename)) as datafile:
                 player_data = json.load(datafile)
                 current_betting_dict = player_data[betting_round][player_bid_type]
                 if player_bid_type == 'raised':
-                    bid_str = str(player_bid - player_bids[prev_raise_idx])
+                    raise_amount = player_bid - player_bids[prev_raise_idx]
+                    if raise_amount == 0:
+                        bid_str = "00"
+                    else:
+                        log2_raise_amount = int(np.log2(raise_amount))
+                        bid_str = str(log2_raise_amount)
                 else:
-                    bid_str = str(player_bid)
+                    if player_bid == 0:
+                        bid_str = "00"
+                    else:
+                        bid_str = str(int(np.log2(player_bid)))
                 if bid_str in current_betting_dict:
                     current_betting_data = current_betting_dict[bid_str]
                 else:
@@ -620,7 +630,11 @@ class bayesian(ratio):
                 # (better players will have more meaningful data, and also more money in the game)
                 alphas = opp_hand_probs
             else:
-                alphas = opp_hand_probs/lamb + numpy_betting_data
+                if self.lamb_multi:
+                    print("LAMB MULTI IS ON")
+                    alphas = opp_hand_probs + numpy_betting_data*lamb
+                else:
+                    alphas = opp_hand_probs/lamb + numpy_betting_data
             
             # here we are adding one to each alpha, to satisfy the unique mode constraint, 
             # but then we also subtract one from each alpha, so the net is 0
@@ -658,7 +672,7 @@ class bayesian(ratio):
             
             # append the current bid to the appropriate tuple
             old_tuple = temp_data[player_name][betting_round][player_bid_type]
-            new_tuple = (*old_tuple,int(player_bid))
+            new_tuple = (*old_tuple,bid_str)
             temp_data[player_name][betting_round][player_bid_type] = new_tuple
 
         
