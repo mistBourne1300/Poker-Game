@@ -1,3 +1,12 @@
+# 1. Ignore absolutely everything
+*
+
+# 2. But do NOT ignore files that contain a dot (files with extensions)
+!*.*
+
+# 3. And do NOT ignore directories (so Git can search inside them)
+!*/
+
 .vscode/
 .vscode
 .idea/
@@ -8,3 +17,4 @@ makefile
 */__pycache__/*
 */.DS_Store
 .DS_Store
+*.json
